@@ -13,7 +13,7 @@ function audPipe(param)
 %R5 05/26/18 new input nmov to build the integration object
 %R6 06/13/18 input param (struct) instead of multiple variables   
     
-    %If run on the HPC, using slurm to change the current directory
+    %If run on the HPC, use slurm to change the current directory
     try
         currentFolder = 'E:\Yixiang\New scripts\New folder';
         cd(currentFolder);
@@ -27,6 +27,10 @@ function audPipe(param)
     
     %Detect movie/baphy/spike2/roi files 
     Integration.fileDetector();
+    
+    %Convert spike2 raw data to .mat files
+    Integration.Spike2Matlab(cd);
+    
     filelist = readtext('files.txt',' ');
     nmov = size(filelist,1);
     IdxInAll = cell(nmov,1);
