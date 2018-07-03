@@ -142,7 +142,8 @@ This function will call the Integration.processMovies method iteratively.  This 
             save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
             
             %Binary thresholding of pre-processed A
-            [BW_ppA,~] = Integration.bwThresholding(Ga_TH_A);	            clear GA_TH_A;
+            [BW_ppA,~] = Integration.bwThresholding(Ga_TH_A);	            
+            clear GA_TH_A;
             
             %Generate connected component
             Integration.GenerateCC(TH_A,BW_ppA,filename)
