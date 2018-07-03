@@ -27,7 +27,8 @@ Most of methods are static in this framework
 
 For example:
 1.To generate lists of filenames of .tif/.mat/.m files under current folder, you can type ‘Integration.fileDetector()’.
-2.To do analysis on current movie, you need to make an Integration instance (object), then do analysis on this instance. Say you create an instance named ‘IntgA’, to run pre-processing pipeline on this instrance using the method(function) ‘prePipe’, type ‘IntgA.prePipe()’ .
+2.To do analysis on current movie, you need to make an Integration instance (object), then do analysis on this instance. Say you create an instance named ‘IntgA’, to run pre-processing pipeline on this instrance using the method(function) ‘prePipe’, type ‘IntgA.prePipe()’ 
+
 When you create an Integration object, the program will first construct the corresponding spike2, baphy, movieData, Names, ROI, wlSwitching sub-objects (if specified). Module(s) can be waived if it’s not required for the analysis or the corresponding files are not provided.
 
 3.
