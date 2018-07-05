@@ -812,7 +812,7 @@ classdef movieData
             %iniDim defines from which dimension shall the function starts
             %to preserve
             if nargin<2
-                iniDim = 4;
+                iniDim = 6;
             end
             
             %Identify the vertex of the minimum rectangle containing roi
