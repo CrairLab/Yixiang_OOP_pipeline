@@ -36,7 +36,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R7 06/06/18 Compatiable with ROI class R2, movieData R9           
 %R8 06/13/18 Modify prePipe function, compatiable with movieData R10 
 %(rigid registration and photo bleaching correction)                           
-%R9 06/19/18 Add SVD denosing comopatiable with movieData R11           
+%R9 06/19/18 Add SVD denosing comopatiable with movieData R11
+%R9 07/01/18 Modify the GenerateCC function; Convert 0 values to nan after
+%top-hat filtering
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -107,8 +109,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         
             currentFolder = pwd;
             filename = obj.filename;        
-            typeString = 'filtered';
-            checkname = [filename(1:length(filename)-4) '_' typeString '.mat'];
             disp(['Processing: ' filename]);
             disp(' ');
  
@@ -164,7 +164,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             
             %Top-hat filtering
             TH_A = Integration.TopHatFiltering(de_A);
-            disp('Top-head filtering is done');
+            TH_A(TH_A == 0) = nan;
+            disp('Top-hat filtering is done');
             disp('')
             clear de_A
             
@@ -188,6 +189,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Save filtered matrix
             outputFolder = fullfile(currentFolder,obj.outputFolder);
             mkdir(outputFolder);
+            checkname = [filename(1:length(filename)-4) '_filtered.mat'];
             save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
             
             %Black-white thresholding of pre-processed A
@@ -195,8 +197,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             clear GA_TH_A;
             
             %Generate connected component
-            Integration.GenerateCC(TH_A,BW_ppA,filename)
-            clear TH_A BW_ppA
+            region = Integration.GenerateCC(TH_A,BW_ppA);
+            checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
+            save(fullfile(outputFolder,checkname),'region');
+            clear TH_A BW_ppA region
 
             disp(['Preprocessing done: ' filename]);
             disp('')
@@ -520,6 +524,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 clear IntgA;
 
             else
+                %Single channel recording
                 IntgA = Integration(f,flag,nmov);
                 Idx = IntgA.prePipe(spacialFactor,reg_flag);              
                 fprintf(['No.' num2str(f) ' is finished\n']);
@@ -540,6 +545,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         
 
             if flag == 2
+                %Channel 1
                 currentFolder = pwd;
                 Folder1 = fullfile(currentFolder,'Channel_1');
                 cd(Folder1)
@@ -548,7 +554,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 save(savename,'IdxInAll_1');
 
                 cd(currentFolder);   
-
+                
+                %Channel 2
                 currentFolder = pwd;
                 Folder2 = fullfile(currentFolder,'Channel_2');
                 cd(Folder2)
@@ -557,6 +564,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 save(savename,'IdxInAll_2');
                 cd(currentFolder);
             else
+                %Single channel recording
                 Integration.AveragedMapsAcrossMovies();
                 savename = 'IdxInAll';
                 save(savename,'IdxInAll')
@@ -564,7 +572,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         end
         
         
-        function GenerateCC(TH_A,BW_ppA,filename)
+        function region = GenerateCC(TH_A,BW_ppA)
         
         %    Generate connected components from pre-processed matrix
         %    
@@ -585,12 +593,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 'MaxIntensity', 'MinIntensity', 'MeanIntensity','MinorAxisLength');
             %Integration.makeCCMovie(filename,CC,sz);
 
-            %Save connected components and regionprops STATS
+            %Store connected components and regionprops STATS
             region.domainData.CC = CC;
             region.domainData.STATS = STATS;
-            typeString = 'region';
-            checkname = ['CC_' filename(16:length(filename)-4) '_' typeString '.mat'];
-            save(checkname,'region');
         end
         
     end

@@ -459,7 +459,7 @@ classdef movieData
                 tmp_filename = [filename(1:length(filename)-4) '.png'];
                 imwrite(pictypeInd, tmp_filename);
                 tmp_filename = [filename(1:length(filename)-4) '.avi'];
-                VideoDFoverF = movieData.InsideVideodFoverF(AveragedMatrix); %modified in R3
+                %VideoDFoverF = movieData.InsideVideodFoverF(AveragedMatrix); %modified in R3
                 [~, Iarr] = timeColorMapProj(squeeze(AveragedMatrix),1,40,tmp_filename);
                 Iarr2avi(Iarr,1,40,tmp_filename);
 
