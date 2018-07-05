@@ -35,7 +35,8 @@ classdef movieData
 %Compatiable with Integration R7          
 %R10 06/13/18 New static functions allowing rigid registration and 
 %bleaching correction        
-%R11 06/19/18 SVD deposition (to roi part, faster)      
+%R11 06/19/18 SVD deposition (to roi part, faster)
+%R11 07/05/18 new roiSVD function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -794,16 +795,26 @@ classdef movieData
         
         
         
-        function A = roiSVD(A)
+        function A = roiSVD(A, iniDim)
 
         %    This function automatically identify the minimum rectangle containing roi
         %    and then do SVD denosing to only the roi part of the original matrix. It 
         %    preseves the 4th to the psv_dim-th principle components and recover the
         %    reconstructed roi part to original matrix size
         %
-        %    Inputs/Outpus:
-        %    A        3D matrix 
-
+        %    Inputs:
+        %    A        3D matrix
+        %    iniDim   First preserved component
+        %   
+        %    Outputs:
+        %    A        processed matrix
+            
+            %iniDim defines from which dimension shall the function starts
+            %to preserve
+            if nargin<2
+                iniDim = 4;
+            end
+            
             %Identify the vertex of the minimum rectangle containing roi
             cur_img = A(:,:,1);
             [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(cur_img);
@@ -818,7 +829,7 @@ classdef movieData
             tic; [U,S,V] = svds(A_roi,psv_dim); toc;
 
             %Reconstruct the roi pairt using the the 4th to the last component
-            A_roi_rcs = U(:,4:end)*S(4:end,4:end)*V(:,4:end)';
+            A_roi_rcs = U(:,iniDim:end)*S(iniDim:end,iniDim:end)*V(:,iniDim:end)';
             A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
 
             %Recover the roi to the original image size
