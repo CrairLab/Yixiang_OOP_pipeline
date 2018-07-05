@@ -36,7 +36,7 @@ classdef movieData
 %R10 06/13/18 New static functions allowing rigid registration and 
 %bleaching correction        
 %R11 06/19/18 SVD deposition (to roi part, faster)
-%R11 07/05/18 new roiSVD function
+%R11 07/05/18 new roiSVD function, new grossDFoverF (mean->nanmean)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -735,7 +735,7 @@ classdef movieData
         function A = grossDFoverF(A)
         %    Doing gross dFoverF calculation.
         
-            A_mean = mean(A,3);
+            A_mean = nanmean(A,3);
             for i = 1:size(A,3)
             	A(:,:,i) = (A(:,:,i) - A_mean)./A_mean;
             end

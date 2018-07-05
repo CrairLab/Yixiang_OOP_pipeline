@@ -38,7 +38,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %(rigid registration and photo bleaching correction)                           
 %R9 06/19/18 Add SVD denosing comopatiable with movieData R11
 %R9 07/01/18 Modify the GenerateCC function; Convert 0 values to nan after
-%top-hat filtering
+%top-hat filtering 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -164,7 +164,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             
             %Top-hat filtering
             TH_A = Integration.TopHatFiltering(de_A);
-            TH_A(TH_A == 0) = nan;
             disp('Top-hat filtering is done');
             disp('')
             clear de_A
@@ -172,7 +171,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Check flag to decide whether to generate frequency/volume maps
             if obj.flag
                 %Integration.FreqColorMap(TH_A,filename,obj);
+                TH_A(TH_A == 0) = nan; % for better intra-Video dFOverF
                 Integration.FreqVoluColorMap(TH_A,filename,obj.nmov);
+                TH_A(isnan(TH_A)) = 0; %resume for later filtering
             end
             
             %Impose dFOverF to top-hat filtered matrix
