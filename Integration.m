@@ -39,6 +39,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R9 06/19/18 Add SVD denosing comopatiable with movieData R11
 %R9 07/01/18 Modify the GenerateCC function; Convert 0 values to nan after
 %top-hat filtering 
+%R10 07/07/18 Major improvement of how to generate connected components
+%Use 2D properties (eccentricity and orientation) of ellipse to filter CCs
+%Modify 3D filtering of CCs (at least last for 3 consecutive frames)
+%New function filterCC_byFrame. Save BW_ppA.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -192,16 +196,25 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             mkdir(outputFolder);
             checkname = [filename(1:length(filename)-4) '_filtered.mat'];
             save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
+          
+            %For later analysis, only focus on ROI part
+            [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(Ga_TH_A(:,:,1)); 
+            ppA_roi = Ga_TH_A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed A
             
             %Black-white thresholding of pre-processed A
-            [BW_ppA,~] = Integration.bwThresholding(Ga_TH_A); %ppA is short for pre-processed A
-            clear GA_TH_A;
+            [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
+            clear Ga_TH_A;
             
             %Generate connected component
-            region = Integration.GenerateCC(TH_A,BW_ppA);
+            [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
             checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
             save(fullfile(outputFolder,checkname),'region');
-            clear TH_A BW_ppA region
+            clear TH_A region
+            
+            %Save binary movie
+            checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
+            save(fullfile(outputFolder,checkname),'BW_ppA');
+            clear BW_ppA
 
             disp(['Preprocessing done: ' filename]);
             disp('')
@@ -331,7 +344,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             writeMovie(M,filename(1:length(filename)-4));
         end
         
-        function CC = ccThresh(CC,minSpotSize)
+        function CC = ccThresh_3D(CC,minSpotSize)
         
         %    Thresholding the connected componnents based on each
         %    component's size and temporal duration
@@ -372,7 +385,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         
         %    Thresholding the CC based on each component's temporal
         %    duration, which is the length of the BoundingBox side along the
-        %    time dimension. 
+        %    time dimension. A component should last for at least 3 frames
         %   
         %    Inputs:
         %    CC     Connected components from bwconncomp
@@ -388,8 +401,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             durations = roiBoundingBox(:,6);
             newPixelIdxList = CC.PixelIdxList;
             
-            %duration should be larger/equal to 2 frames
-            newPixelIdxList(durations(:)<2) = [];
+            %duration should be larger/equal to 3 frames
+            newPixelIdxList(durations(:)<3) = [];
             CC.PixelIdxList = newPixelIdxList;
             CC.NumObjects = length(newPixelIdxList);                 
         end
@@ -454,22 +467,22 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             fclose('all');
         end
         
-        function minSize= minSpotSize(CC,sz)
+        function minSize= minSpotSize(CC)
         
         %    Compute the minimum size of CC to be preserved. 
         %
         %    Inputs:
         %        CC      connected components
-        %        sz      size of the video
-        %
+        %                %
         %    Outputs:
         %        minSize     minimum size chosen for thresholding
         
             
             PixelIdxList = CC.PixelIdxList;
             sizeCounts = cellfun(@length,PixelIdxList);
-            %Choose the samller one btw 95% percentile of all CC sizes and 1% of image size 
-            minSize = min(prctile(sizeCounts,95),sz(1)*sz(2)/100);
+            %Choose the bigger one btw 20% percentile of all CC sizes and 0.1% of image size 
+            sz = CC.ImageSize;
+            minSize = max(prctile(sizeCounts,20),sz(1)*sz(2)/1000);
         
         end
         
@@ -573,12 +586,73 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         end
         
         
-        function region = GenerateCC(TH_A,BW_ppA)
+        function BW_ppA = filterCC_byFrame(BW_ppA)
+            
+        % Use 2D propertity of each frame (size, eccentricity, orientation)
+        % to filter connected components and reconstruct the binary movie
+        %
+        % Input/Output:
+        %   BW_ppA          Binary 3D matrix
+        
+            sz = size(BW_ppA);
+                for i = 1:sz(3)
+
+                    cur_img = BW_ppA(:,:,i);
+                    cur_CC = bwconncomp(cur_img);
+
+                    %Filter by size
+                    szList = cellfun(@length,cur_CC.PixelIdxList);
+                    kill_sz= szList< sz(1)*sz(2)/1000;
+                    cur_CC.PixelIdxList(kill_sz) = [];
+                    cur_CC.NumObjects = length(cur_CC.PixelIdxList);
+
+                    %Filter by ellipse properties
+                    leftBound = round(2*size(cur_img,2)/5);
+                    rightBound = round(3*size(cur_img,2)/5);
+
+                    cur_STATS = regionprops(cur_CC,'Eccentricity','Orientation','Centroid'); 
+                    kill_eclipse = zeros(1,length(cur_STATS));
+                    for j = 1:length(cur_STATS)
+                        cur_struct = cur_STATS(j);
+
+                        if  cur_struct.Eccentricity < 0.6 %filter by eccentricity
+                            kill_eclipse(1,j) = 1;
+                        else
+                            if (cur_struct.Centroid(1) < leftBound) %for bands on the left 1/3, specify reasonable orientation range
+                                if (cur_struct.Orientation < -70)||(cur_struct.Orientation > -10)
+                                    kill_eclipse(1,j) = 1;
+                                end
+                            elseif (cur_struct.Centroid(1) > rightBound) %for bands on the right 1/3, specify reasonable orientation range
+                                if (cur_struct.Orientation > 80)||(cur_struct.Orientation < 20)
+                                    kill_eclipse(1,j) = 1;
+                                end
+                            end
+                        end        
+                    end
+
+                    cur_CC.PixelIdxList(logical(kill_eclipse)) = [];
+                    cur_CC.NumObjects = length(cur_CC.PixelIdxList); 
+
+                    %Reconstruct filtered image
+                    x = [];
+                    for k = 1:length(cur_CC.PixelIdxList)
+                        cur_cell = cur_CC.PixelIdxList(k); 
+                        x = [x;cur_cell{1}];
+                    end
+                    rcs_img = zeros(sz(1),sz(2));
+                    rcs_img(x) = 1;
+                    BW_ppA(:,:,i) = rcs_img;
+                end
+
+        end
+        
+        
+        function [region,BW_ppA] = GenerateCC(ppA,BW_ppA)
         
         %    Generate connected components from pre-processed matrix
         %    
         %    Inputs:
-        %        TH_A    Matrix that has been filtered
+        %        ppA     Matrix that has been pre-processed
         %        BW_A    Matrix that has been black-white thresholded
         %        filename   current filename
         
@@ -586,17 +660,32 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Connected components of thresholded A.
             disp('Processing Connected Components and Regionprops')
             disp('')
-            sz = size(BW_ppA);
+            
+            %Filter BW_ppA by frame using 2D properties of the CCs
+            BW_ppA = Integration.filterCC_byFrame(BW_ppA);
+            
+            %Filter BW_ppA using the 3D properties of the CCs
             CC = bwconncomp(BW_ppA);
-            minSize = Integration.minSpotSize(CC,sz);
-            CC = Integration.ccThresh(CC,minSize);
-            STATS = regionprops(CC,TH_A,'Area','BoundingBox', 'Centroid',...
-                'MaxIntensity', 'MinIntensity', 'MeanIntensity','MinorAxisLength');
+            %minSize = Integration.minSpotSize(CC);
+            %CC = ccThresh_3D(CC,minSpotSize)
+            CC = Integration.ccTimeThresh(CC);
+            STATS = regionprops(CC,ppA,'Area','BoundingBox', 'Centroid',...
+                'MaxIntensity', 'MinIntensity', 'MeanIntensity');
             %Integration.makeCCMovie(filename,CC,sz);
+            
+            %Reconstruct filtered image
+            x = [];
+            for k = 1:length(CC.PixelIdxList)
+                cur_cell = CC.PixelIdxList(k); 
+                x = [x;cur_cell{1}];
+            end
+            rcs_movie = zeros(size(BW_ppA));
+            rcs_movie(x) = 1;
+            BW_ppA = rcs_movie;
 
             %Store connected components and regionprops STATS
-            region.domainData.CC = CC;
-            region.domainData.STATS = STATS;
+            region.CC = CC;
+            region.STATS = STATS;
         end
         
     end

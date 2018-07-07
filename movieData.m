@@ -37,6 +37,7 @@ classdef movieData
 %bleaching correction        
 %R11 06/19/18 SVD deposition (to roi part, faster)
 %R11 07/05/18 new roiSVD function, new grossDFoverF (mean->nanmean)
+%R11 07/07/18 relax decremental factor starting from 1.6 in function bwThresholding_10prctPixels
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -710,7 +711,7 @@ classdef movieData
                 currMatrix(currMatrix == 0) = nan;
                 currMean = nanmean(currMatrix(:));
                 currStd = nanstd(currMatrix(:));
-                factor = 2;
+                factor = 1.6;
                 
                 pixelsN = sz(1) * sz(2) - sum(isnan(currMatrix(:)));
                 pixelsOverT = 0;
