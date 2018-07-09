@@ -6,7 +6,8 @@ classdef Names
 %R2 05/09/18 Code is modified to handle the situation in which spike2 files 
 %are not provided. 
 %R2 05/23/18 Code is modified to be compatible with different recording
-%configurations (spontaneous, with stimulation, wavelength switching) 
+%configurations (spontaneous, with stimulation, wavelength switching)
+%R2 07/09/18 Try catch for baphy files naming, more robust
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     properties
         filename; %filename of the movie
@@ -38,7 +39,16 @@ classdef Names
                     disp('')
                     obj.Spike2name = [];
                 end
-                obj.Baphyname = baphyList{f,1};
+                
+                try
+                    obj.Baphyname = baphyList{f,1};
+                catch
+                    disp('')
+                    disp('baphy files not provided!');
+                    disp('')
+                    obj.Spike2name = [];
+                end
+                
             else
                 obj.Spike2name = [];
                 obj.Baphyname = [];

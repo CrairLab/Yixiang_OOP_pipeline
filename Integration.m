@@ -44,6 +44,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %Modify 3D filtering of CCs (at least last for 3 consecutive frames)
 %New function filterCC_byFrame. Save BW_ppA. 
 %R10 07/09/18 New function: fileDetector_keyword(keyword)
+%R10 07/09/18 Now compatiable with spontaneous wavelength switching
+%Taking advantage of the ME.identifier == 'MATLAB:unassignedOutputs'.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -126,10 +128,14 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 catch ME
                     %Handle damaged spike2 files problem
                     if (strcmp(ME.identifier,'MATLAB:badsubscript'))
-                        disp(' ')
+                        disp('')
                         disp('Index exceeds matrix dimensions. Check Spike2!!')
                         disp('Skip alignment...')
-                        disp(' ')
+                        disp('')
+                    elseif (strcmp(ME.identifier,'MATLAB:unassignedOutputs'))
+                        disp('')
+                        disp('Unassigned Outputs, probably baphy file not provided. Skip alignment...')
+                        disp('')
                     end
                     obj.flag = ~obj.flag;
                     FramesByFreqVolu = 0;
