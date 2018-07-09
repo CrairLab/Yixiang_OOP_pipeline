@@ -42,7 +42,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R10 07/07/18 Major improvement of how to generate connected components
 %Use 2D properties (eccentricity and orientation) of ellipse to filter CCs
 %Modify 3D filtering of CCs (at least last for 3 consecutive frames)
-%New function filterCC_byFrame. Save BW_ppA.
+%New function filterCC_byFrame. Save BW_ppA. 
+%R10 07/09/18 New function: fileDetector_keyword(keyword)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -465,6 +466,30 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             end
 
             fclose('all');
+        end
+        
+        function filelist = fileDetector_keyword(keyword)
+        % Detect files whose names contain the provided keyword
+        % Inputs:
+        %   keyword     string for regexp function
+        %
+        % Outputs:
+        %   filelist    List of qualified files
+        %
+            if nargin == 0
+                disp('No key string provided!')
+                keyword = '.';
+            end
+
+            temp_info = dir;
+            filelist = {};
+            n = 0;
+            for i = 1:size(temp_info,1)  
+                if regexp(temp_info(i,1).name,keyword)
+                    n = n+1;
+                    filelist{n,1} = temp_info(i,1).name;
+                end
+            end
         end
         
         function minSize= minSpotSize(CC)
