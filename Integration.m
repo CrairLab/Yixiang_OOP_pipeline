@@ -652,8 +652,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     cur_CC.NumObjects = length(cur_CC.PixelIdxList);
 
                     %Filter by ellipse properties
-                    leftBound = round(2*size(cur_img,2)/5);
-                    rightBound = round(3*size(cur_img,2)/5);
+                    leftBound = round(size(cur_img,2)/2);
+                    rightBound = round(size(cur_img,2)/2);
 
                     cur_STATS = regionprops(cur_CC,'Eccentricity','Orientation','Centroid'); 
                     kill_eclipse = zeros(1,length(cur_STATS));
