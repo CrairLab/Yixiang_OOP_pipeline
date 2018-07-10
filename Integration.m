@@ -46,6 +46,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R10 07/09/18 New function: fileDetector_keyword(keyword)
 %R10 07/09/18 Now compatiable with spontaneous wavelength switching
 %Taking advantage of the ME.identifier == 'MATLAB:unassignedOutputs'.
+%R10 07/10/18 If filtered matix exist, skip pre-processing. Change range of
+%orientation to be preserved (save those within 15-75 degree range)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -119,90 +121,102 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             disp(['Processing: ' filename]);
             disp(' ');
  
-            %Check the flag to decide whether do frames-frequency-volume
-            %alignment
-            if obj.flag
-                
-                try
-                    FramesByFreqVolu = obj.FramesByFreqAlign;
-                catch ME
-                    %Handle damaged spike2 files problem
-                    if (strcmp(ME.identifier,'MATLAB:badsubscript'))
-                        disp('')
-                        disp('Index exceeds matrix dimensions. Check Spike2!!')
-                        disp('Skip alignment...')
-                        disp('')
-                    elseif (strcmp(ME.identifier,'MATLAB:unassignedOutputs'))
-                        disp('')
-                        disp('Unassigned Outputs, probably baphy file not provided. Skip alignment...')
-                        disp('')
+            outputFolder = fullfile(currentFolder,obj.outputFolder);
+            checkname = [filename(1:length(filename)-4) '_filtered.mat'];   
+            
+            if exist(fullfile(outputFolder,checkname),'file')
+            %Check whether pre-processing has been done before
+                disp('Filtered matrix detected, skip pre-processing...')
+                load(fullfile(outputFolder,checkname));
+                clear obj;
+                FramesByFreqVolu = 0;
+            else
+                %Check the flag to decide whether do frames-frequency-volume
+                %alignment
+                if obj.flag
+
+                    try
+                        FramesByFreqVolu = obj.FramesByFreqAlign;
+                    catch ME
+                        %Handle damaged spike2 files problem
+                        if (strcmp(ME.identifier,'MATLAB:badsubscript'))
+                            disp('')
+                            disp('Index exceeds matrix dimensions. Check Spike2!!')
+                            disp('Skip alignment...')
+                            disp('')
+                        elseif (strcmp(ME.identifier,'MATLAB:unassignedOutputs'))
+                            disp('')
+                            disp('Unassigned Outputs, probably baphy file not provided. Skip alignment...')
+                            disp('')
+                        end
+                        obj.flag = ~obj.flag;
+                        FramesByFreqVolu = 0;
                     end
-                    obj.flag = ~obj.flag;
+                else
                     FramesByFreqVolu = 0;
                 end
-            else
-                FramesByFreqVolu = 0;
-            end
-            
-            %Correct photobleaching
-            A_corrct = Integration.bleachCorrection(obj.A);
-            disp('Photobleaching corrected!');
-            
-            % Decide whether do rigid registration or not
-            if reg_flag 
-                if ~exist('Fixed_frame.mat','file')
-                    A_fixed = A_corrct(:,:,1);
-                    save('Fixed_frame.mat','A_fixed');
-                else
-                    load('Fixed_frame.mat');
+
+                %Correct photobleaching
+                A_corrct = Integration.bleachCorrection(obj.A);
+                disp('Photobleaching corrected!');
+
+                % Decide whether do rigid registration or not
+                if reg_flag 
+                    if ~exist('Fixed_frame.mat','file')
+                        A_fixed = A_corrct(:,:,1);
+                        save('Fixed_frame.mat','A_fixed');
+                    else
+                        load('Fixed_frame.mat');
+                    end
+                    A_corrct = movieData.movieRigReg(A_fixed,A_corrct);
                 end
-                A_corrct = movieData.movieRigReg(A_fixed,A_corrct);
+
+                %Apply ROI mask(s)
+                A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
+                clear A_corrct
+
+                %Downsampling
+                A_DS = Integration.downSampleMovie(A_ROI,spacialFactor);
+                clear A_ROI
+
+                %SVD denosing of down-sampled A
+                de_A = Integration.roiSVD(A_DS);
+                disp('SVD denosing is done')
+                disp('')
+                clear A_DS
+
+                %Top-hat filtering
+                TH_A = Integration.TopHatFiltering(de_A);
+                disp('Top-hat filtering is done');
+                disp('')
+                clear de_A
+
+                %Check flag to decide whether to generate frequency/volume maps
+                if obj.flag
+                    %Integration.FreqColorMap(TH_A,filename,obj);
+                    TH_A(TH_A == 0) = nan; % for better intra-Video dFOverF
+                    Integration.FreqVoluColorMap(TH_A,filename,obj.nmov);
+                    TH_A(isnan(TH_A)) = 0; %resume for later filtering
+                end
+
+                %Impose dFOverF to top-hat filtered matrix
+                TH_A = Integration.grossDFoverF(TH_A);
+                disp('Gloabal dFoverF is done')
+                disp(' ')
+
+                %Gaussian smoothing
+                Ga_TH_A = Integration.GauSmoo(TH_A,2); %set sigma = 2
+                disp('Gaussian smoothing is done');
+                disp(' ')
+                %clear TH_A
+
+                %Save filtered matrix
+                outputFolder = fullfile(currentFolder,obj.outputFolder);
+                mkdir(outputFolder);
+                checkname = [filename(1:length(filename)-4) '_filtered.mat'];
+                save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
+    
             end
-            
-            %Apply ROI mask(s)
-            A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
-            clear A_corrct
-            
-            %Downsampling
-            A_DS = Integration.downSampleMovie(A_ROI,spacialFactor);
-            clear A_ROI
-            
-            %SVD denosing of down-sampled A
-            de_A = Integration.roiSVD(A_DS);
-            disp('SVD denosing is done')
-            disp('')
-            clear A_DS
-            
-            %Top-hat filtering
-            TH_A = Integration.TopHatFiltering(de_A);
-            disp('Top-hat filtering is done');
-            disp('')
-            clear de_A
-            
-            %Check flag to decide whether to generate frequency/volume maps
-            if obj.flag
-                %Integration.FreqColorMap(TH_A,filename,obj);
-                TH_A(TH_A == 0) = nan; % for better intra-Video dFOverF
-                Integration.FreqVoluColorMap(TH_A,filename,obj.nmov);
-                TH_A(isnan(TH_A)) = 0; %resume for later filtering
-            end
-            
-            %Impose dFOverF to top-hat filtered matrix
-            TH_A = Integration.grossDFoverF(TH_A);
-            disp('Gloabal dFoverF is done')
-            disp(' ')
-            
-            %Gaussian smoothing
-            Ga_TH_A = Integration.GauSmoo(TH_A,2); %set sigma = 2
-            disp('Gaussian smoothing is done');
-            disp(' ')
-            %clear TH_A
-            
-            %Save filtered matrix
-            outputFolder = fullfile(currentFolder,obj.outputFolder);
-            mkdir(outputFolder);
-            checkname = [filename(1:length(filename)-4) '_filtered.mat'];
-            save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
           
             %For later analysis, only focus on ROI part
             [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(Ga_TH_A(:,:,1)); 
@@ -650,11 +664,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                             kill_eclipse(1,j) = 1;
                         else
                             if (cur_struct.Centroid(1) < leftBound) %for bands on the left 1/3, specify reasonable orientation range
-                                if (cur_struct.Orientation < -70)||(cur_struct.Orientation > -10)
+                                if (cur_struct.Orientation < -75)||(cur_struct.Orientation > -15)
                                     kill_eclipse(1,j) = 1;
                                 end
                             elseif (cur_struct.Centroid(1) > rightBound) %for bands on the right 1/3, specify reasonable orientation range
-                                if (cur_struct.Orientation > 80)||(cur_struct.Orientation < 20)
+                                if (cur_struct.Orientation > 75)||(cur_struct.Orientation < 15)
                                     kill_eclipse(1,j) = 1;
                                 end
                             end
