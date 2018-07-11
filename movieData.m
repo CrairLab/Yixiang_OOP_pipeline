@@ -38,6 +38,7 @@ classdef movieData
 %R11 06/19/18 SVD deposition (to roi part, faster)
 %R11 07/05/18 new roiSVD function, new grossDFoverF (mean->nanmean)
 %R11 07/07/18 relax decremental factor starting from 1.6 in function bwThresholding_10prctPixels
+%R11 07/11/18 new function makePseudoColorMovie
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -872,6 +873,30 @@ classdef movieData
             nZ_1_upper = max(nZ_1);
             nZ_1_lower = min(nZ_1);
 
+        end
+        
+        function makePseudoColorMovie(A,movieName)
+            
+        % Make pseudo-color (jet 256) movie from matrix A
+        % Inputs:
+        %   A    3D matrx (grayscale)
+        %   movieName   Name of the movie
+        %
+            if nargin == 1
+                movieName = 'outputPseudocolorMovie';
+            end
+            [X,~] = gray2ind(A);
+            sz = size(X);
+            new_X = zeros(sz(1),sz(2),3,sz(3));
+            for i = 1:sz(3)
+                %disp(num2str(i))
+                new_X(:,:,:,i) = ind2rgb(X(:,:,i), jet(256));
+            end
+            mov = immovie(new_X);
+            v = VideoWriter(movieName,'Motion JPEG AVI');
+            open(v)
+            writeVideo(v,mov);
+            close(v)
         end
 
         
