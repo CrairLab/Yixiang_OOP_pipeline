@@ -1,53 +1,67 @@
+function byPassPreProcessing(id)
 %This function bypass pre-processing (assuming it has been done) and use
 %filtered matrix to do further analysis
 %07/11/18 can do renewCC, seed-based correlation, or generate pseudo color
-%movie based on the filtered matrix
+%movie based on the filtered matrix.
+%
+%
+%Inputs:
+%id       determine which function to run
+%(id == 1, renewCC; id == 2, pseudo-clolor movie; id == 3 seed-based corr)
+    if ~exist('files.txt','file')
+        Integration.fileDetector()
+    end
+    filelist = readtext('files.txt',' ');
+    nmov = size(filelist,1);
+    A_all = [];
 
-clear;
-if ~exist('files.txt','file')
-    Integration.fileDetector()
-end
-filelist = readtext('files.txt',' ');
-nmov = size(filelist,1);
-flag = 0;
-A_all = [];
 
+    for f = 1:nmov
+        cur_Names = Names(f,0);
+        filename = cur_Names.filename;
+        currentFolder = pwd;
+        outputFolder = fullfile(currentFolder,cur_Names.outputFolder);
+        checkname = [filename(1:length(filename)-4) '_filtered.mat'];               
+            if exist(fullfile(outputFolder,checkname),'file')
+                %Check whether pre-processing has been done before
+                disp('Filtered matrix detected, loading .mat file...')
+                load(fullfile(outputFolder,checkname));
+                
+                switch id
+                    case 1
+                        %Chop the matrix to contain only roi
+                         ppA_roi = focusOnroi(Ga_TH_A);
+                        %Renew connected components
+                        renewCC(ppA_roi,outputFolder,filename)
+                        disp(['Preprocessing done: ' filename]);
+                    case 2
+                        %Chop the matrix to contain only roi
+                         ppA_roi = focusOnroi(Ga_TH_A);
+                        %make pseudo color movie
+                        movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
+                        disp(['Preprocessing done: ' filename]);
+                    case 3
+                        %prepare for seed-based correlation analysis
+                        A_all = cat(3, A_all, Ga_TH_A);
+                end             
+                
+                disp('')
+            else
+                disp('')
+                disp('No filetered matrix detected!!!')
+                disp('')
+            end
+
+    end
     
-for f = 1:nmov
-    cur_Names = Names(f,flag);
-    filename = cur_Names.filename;
-    currentFolder = pwd;
-    outputFolder = fullfile(currentFolder,cur_Names.outputFolder);
-    checkname = [filename(1:length(filename)-4) '_filtered.mat'];               
-        if exist(fullfile(outputFolder,checkname),'file')
-            %Check whether pre-processing has been done before
-            disp('Filtered matrix detected, loading .mat file...')
-            load(fullfile(outputFolder,checkname));
-            
-            %Chop the matrix to contain only roi
-            %ppA_roi = focusOnroi(Ga_TH_A);
-            
-            %Renew connected components
-            %renewCC(ppA_roi,outputFolder,filename)
-            
-            %make pseudo color movie
-            %movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
-            A_all = cat(3, A_all, Ga_TH_A);
-            %disp(['Preprocessing done: ' filename]);
-            disp('')
-        else
-            disp('')
-            disp('No filetered matrix detected!!!')
-            disp('')
-        end
-
+    if id == 3
+        SeedBasedCorr(A_all)
+    end
+    disp(['Processing done at:' pwd]);
+    
 end
-
-disp(['Processing done at:' pwd]);
-SeedBasedCorr(A_all)
-
 %%
-function renewCC(Ga_TH_A,outputFolder,filename)
+function renewCC(ppA_roi,outputFolder,filename)
 %renew connected components
 
         %Black-white thresholding of pre-processed A
@@ -67,10 +81,10 @@ function renewCC(Ga_TH_A,outputFolder,filename)
 end
 
 %%
-function focusOnroi(A)
+function A = focusOnroi(A)
 %Chop the size to the roi part
     [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(A(:,:,1)); 
-    ppA_roi = A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed 
+    A = A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed 
 
 end
 
@@ -104,8 +118,8 @@ function SeedBasedCorr(A,spacialFactor)
         sz = size(A);
         imgall = reshape(A, sz(1)*sz(2), sz(3));
 
-        disp('Warning: ROI coordinates should be based on original movie size!')
-        [roi,roiPolygon] = ROI.generateROIArray(ROI_all,round(sz./downSampleRatio));
+        disp('Note: ROI coordinates should be based on the downsampled movie size!')
+        [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
 
         %Generate correlation map for each seed
         for r = 1:length(roi)     
@@ -132,7 +146,7 @@ function SeedBasedCorr(A,spacialFactor)
             hold on
 
             %Label seed position
-            fill(roiPolygon{r}(:, 1)*downSampleRatio, roiPolygon{r}(:, 2)*downSampleRatio, 'y')
+            fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
 
             %Save the plot           
             saveas(h, ['roi', num2str(r), '.png'])     
