@@ -972,9 +972,7 @@ classdef movieData
             A = A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed 
         end
   
-end
-        
-        
-    end    
+    end
+           
 end
        
