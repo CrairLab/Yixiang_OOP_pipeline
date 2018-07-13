@@ -217,25 +217,27 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
     
             end
-          
-            %For later analysis, only focus on ROI part
-            [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(Ga_TH_A(:,:,1)); 
-            ppA_roi = Ga_TH_A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed A
             
-            %Black-white thresholding of pre-processed A
-            [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
-            clear Ga_TH_A;
-            
-            %Generate connected component
-            [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
-            checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
-            save(fullfile(outputFolder,checkname),'region');
-            clear TH_A region
-            
-            %Save binary movie
-            checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
-            save(fullfile(outputFolder,checkname),'BW_ppA');
-            clear BW_ppA
+            if obj.flag == 0 %compute connected components only for spontaneous case
+                %For later analysis, only focus on ROI part
+                [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(Ga_TH_A(:,:,1)); 
+                ppA_roi = Ga_TH_A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed A
+
+                %Black-white thresholding of pre-processed A
+                [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
+                clear Ga_TH_A;
+
+                %Generate connected component
+                [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
+                checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
+                save(fullfile(outputFolder,checkname),'region');
+                clear TH_A region
+
+                %Save binary movie
+                checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
+                save(fullfile(outputFolder,checkname),'BW_ppA');
+                clear BW_ppA
+            end
 
             disp(['Preprocessing done: ' filename]);
             disp('')
