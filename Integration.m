@@ -128,7 +128,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Check whether pre-processing has been done before
                 disp('Filtered matrix detected, skip pre-processing...')
                 load(fullfile(outputFolder,checkname));
-                clear obj;
                 FramesByFreqVolu = 0;
             else
                 %Check the flag to decide whether do frames-frequency-volume
