@@ -39,7 +39,8 @@ classdef movieData
 %R11 07/05/18 new roiSVD function, new grossDFoverF (mean->nanmean)
 %R11 07/07/18 relax decremental factor starting from 1.6 in function bwThresholding_10prctPixels
 %R11 07/11/18 new function makePseudoColorMovie
-%R12 07/13/18 new function SeedBasedCorr and focusOnroi 
+%R12 07/13/18 new function SeedBasedCorr and focusOnroi
+%R12 07/14/18 Modify function SeedBasedCorr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -924,44 +925,50 @@ classdef movieData
                 downSampleRatio = 1/spacialFactor;
             else 
                 downSampleRatio = 0.5;
+                disp('Note: Defalut downsampled ratio == 0.5!')
             end
 
-                sz = size(A);
-                imgall = reshape(A, sz(1)*sz(2), sz(3));
+            sz = size(A);
+            imgall = reshape(A, sz(1)*sz(2), sz(3));
+            
+            %Generate cell array of rois
+            [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz*spacialFactor);
 
-                disp('Note: ROI coordinates should be based on the downsampled movie size!')
-                [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
-
-                %Generate correlation map for each seed
-                for r = 1:length(roi)     
-                    if size(roi{r}, 1) ~= sz(1)
-                        mask = imresize(roi{r}, downSampleRatio, 'bilinear');
-                    else
-                        mask = roi{r};
-                    end
-                    maskId = find(mask > 0);
-
-                    %Get seed time series 
-                    seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
-
-                    %Generate correlation matrix
-                    corrM = corr(imgall', seedTrace(r, :)');
-
-                    corrMatrix(:, :, r) = reshape(corrM, sz(1), sz(2));
-
-                    %Plot correlation map
-                    h = figure; 
-                    cur_img = corrMatrix(:, :, r);
-                    imagesc(cur_img); colormap jet; colorbar; axis image
-                    caxis([-0.3, 1]); title(['roi:', num2str(r)]);
-                    hold on
-
-                    %Label seed position
-                    fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
-
-                    %Save the plot           
-                    saveas(h, ['roi', num2str(r), '.png'])     
+            %Generate correlation map for each seed
+            for r = 1:length(roi)     
+                if size(roi{r}, 1) ~= sz(1)
+                    mask = imresize(roi{r}, downSampleRatio, 'bilinear');
+                else
+                    mask = roi{r};
                 end
+                maskId = find(mask > 0);
+
+                %Get seed time series 
+                seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
+
+                %Generate correlation matrix
+                corrM = corr(imgall', seedTrace(r, :)');
+
+                corrMatrix(:, :, r) = reshape(corrM, sz(1), sz(2));
+
+                %Plot correlation map
+                h = figure; 
+                cur_img = corrMatrix(:, :, r);
+                imagesc(cur_img); colormap jet; colorbar; axis image
+                caxis([-0.3, 1]); title(['roi:', num2str(r)]);
+                hold on
+
+                %Label seed position
+                if size(roi{r}, 1) ~= sz(1)
+                    fill(roiPolygon{r}(:, 1).*downSampleRatio, roiPolygon{r}(:, 2).*downSampleRatio, 'y')
+                else
+                    fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
+                end
+
+                %Save the plot           
+                saveas(h, ['roi', num2str(r), '.png'])     
+            end
+            save('Correlation_Matrix.mat','corrMatrix');
         end
         
         function A = focusOnroi(A)
