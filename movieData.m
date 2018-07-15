@@ -932,7 +932,7 @@ classdef movieData
             imgall = reshape(A, sz(1)*sz(2), sz(3));
             
             %Generate cell array of rois
-            [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz*spacialFactor);
+            [roi,roiPolygon] = ROI.generateROIArray(ROI_all,round(sz./spacialFactor));
 
             %Generate correlation map for each seed
             for r = 1:length(roi)     
