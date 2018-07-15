@@ -925,15 +925,21 @@ classdef movieData
                 downSampleRatio = 1/spacialFactor;
             else 
                 downSampleRatio = 0.5;
-                disp('Note: Defalut downsampled ratio == 0.5!')
             end
+            disp(['Note: Defalut downsampled ratio == ' num2str(downSampleRatio)]);
 
             sz = size(A);
             imgall = reshape(A, sz(1)*sz(2), sz(3));
             
             %Generate cell array of rois
-            [roi,roiPolygon] = ROI.generateROIArray(ROI_all,round(sz./downSampleRatio));
-
+            try
+                [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
+            catch
+                [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+            end
+            disp(['Recommending generate ROIs based on downsampled movie/frames!'])
+            disp(['If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
+             
             %Generate correlation map for each seed
             for r = 1:length(roi)     
                 if size(roi{r}, 1) ~= sz(1)
