@@ -42,6 +42,7 @@ classdef movieData
 %R12 07/13/18 new function SeedBasedCorr and focusOnroi
 %R12 07/14/18 Modify function SeedBasedCorr
 %R12 08/30/18 Modify function SeedBasedCorr
+%R12 08/31/18 Modify function SeedBasedCorr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -949,13 +950,17 @@ classdef movieData
                 end
                 if flag == 1
                     [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                    disp('Program thinks that rois are generated based on ORIGINAL movie size')
+                else
+                    disp('Program thinks that rois are generated based on DOWNSAMPLED movie size')
                 end
                 
             catch
                 [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                disp('Program thinks that rois are generated based on ORIGINAL movie size')
             end
             disp(['Recommending generate ROIs based on downsampled movie/frames!'])
-            disp(['If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
+            disp(['Warning: If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
              
             %Generate correlation map for each seed
             for r = 1:length(roi)     
@@ -988,8 +993,10 @@ classdef movieData
                     fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
                 end
 
-                %Save the plot           
-                saveas(h, ['roi', num2str(r), '.png'])     
+                %Save the plot
+                num_str = num2str(1000 + r);
+                num_str(1) = '0';
+                saveas(h, ['roi', num_str, '.png'])     
             end
             save('Correlation_Matrix.mat','corrMatrix');
         end
