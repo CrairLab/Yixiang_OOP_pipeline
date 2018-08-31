@@ -41,6 +41,7 @@ classdef movieData
 %R11 07/11/18 new function makePseudoColorMovie
 %R12 07/13/18 new function SeedBasedCorr and focusOnroi
 %R12 07/14/18 Modify function SeedBasedCorr
+%R12 08/30/18 Modify function SeedBasedCorr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -934,6 +935,22 @@ classdef movieData
             %Generate cell array of rois
             try
                 [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
+                
+                %When ROIs are generated based on original movie size, it
+                %might not cause error. These lines try to detect whether
+                %roi size agrees with sz. If not, it indicates that roi
+                %need to be generated with original movie size.
+                flag = 0;
+                for r = 1:length(roi)     
+                    if size(roi{r}, 1) ~= sz(1)
+                        flag = 1;
+                        break
+                    end
+                end
+                if flag == 1
+                    [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                end
+                
             catch
                 [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
             end
