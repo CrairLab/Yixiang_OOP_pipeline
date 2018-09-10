@@ -234,7 +234,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
                 %Save binary movie
                 checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
-                save(fullfile(outputFolder,checkname),'BW_ppA');
+                save(fullfile(outputFolder,checkname),'BW_ppA','-v7.3');
                 clear BW_ppA
             end
 
