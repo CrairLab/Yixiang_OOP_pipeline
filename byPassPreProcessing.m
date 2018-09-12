@@ -37,7 +37,7 @@ function byPassPreProcessing(id)
                         disp(['Preprocessing done: ' filename]);
                     case 2
                         %Chop the matrix to contain only roi
-                         ppA_roi = focusOnroi(Ga_TH_A);
+                         ppA_roi = movieData.focusOnroi(Ga_TH_A);
                         %make pseudo color movie
                         movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
                         disp(['Preprocessing done: ' filename]);
