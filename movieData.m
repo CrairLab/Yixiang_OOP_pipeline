@@ -43,6 +43,9 @@ classdef movieData
 %R12 07/14/18 Modify function SeedBasedCorr
 %R12 08/30/18 Modify function SeedBasedCorr
 %R12 08/31/18 Modify function SeedBasedCorr
+%R13 09/15/18 Major improvement of SeedBased Corr, now can automatically
+%generate seeds if there is not manually defined ones. Compatiable with ROI
+%class R3 or higher 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -905,7 +908,9 @@ classdef movieData
         
         function SeedBasedCorr(A,spacialFactor)
         % Generate seed-based correlation maps based on seeds and filtered matrix
-        % Read in seeds(rois) from 'Seeds.zip'
+        % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
+        % are not available, try to automatically generate seeds that evenly
+        % cover given rois or the whole image
         %
         % Inputs:
         %   A                input matrix 
@@ -914,14 +919,7 @@ classdef movieData
         % Outpus:
         %   seed-based correlation maps
 
-            %Detect seeds
-            temp = ROI('Seeds.zip');
-            ROI_all = temp.ROIData;
-            if isempty(ROI_all)
-                disp('Seeds not provided! Cannot generate correlation maps!')
-                return
-            end
-
+            
             %downSampleRatio = 1/spacialFactor
             if nargin == 2
                 downSampleRatio = 1/spacialFactor;
@@ -933,44 +931,61 @@ classdef movieData
             sz = size(A);
             imgall = reshape(A, sz(1)*sz(2), sz(3));
             
-            %Generate cell array of rois
-            try
-                [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
-                
-                %When ROIs are generated based on original movie size, it
-                %might not cause error. These lines try to detect whether
-                %roi size agrees with sz. If not, it indicates that roi
-                %need to be generated with original movie size.
-                flag = 0;
-                for r = 1:length(roi)     
-                    if size(roi{r}, 1) ~= sz(1)
-                        flag = 1;
-                        break
+            %Detect seeds
+            temp = ROI('Seeds.zip');
+            ROI_all = temp.ROIData;
+            if isempty(ROI_all)
+                disp('Seeds not provided (no manually defined seeds!)')
+                disp('Generating seeds evenly covering current rois...')
+                roi = ROI.genSeedingROIs();
+                sflag = 1; % for automatically generated seeds
+            else
+
+                %Generate cell array of rois
+                try
+                    [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
+
+                    %When ROIs are generated based on original movie size, it
+                    %might not cause error. These lines try to detect whether
+                    %roi size agrees with sz. If not, it indicates that roi
+                    %need to be generated with original movie size.
+                    flag = 0;
+                    for r = 1:length(roi)     
+                        if size(roi{r}, 1) ~= sz(1)
+                            flag = 1;
+                            break
+                        end
                     end
-                end
-                if flag == 1
+                    if flag == 1
+                        [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                        disp('Program thinks that rois are generated based on ORIGINAL movie size')
+                    else
+                        disp('Program thinks that rois are generated based on DOWNSAMPLED movie size')
+                    end
+
+                catch
                     [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
                     disp('Program thinks that rois are generated based on ORIGINAL movie size')
-                else
-                    disp('Program thinks that rois are generated based on DOWNSAMPLED movie size')
                 end
-                
-            catch
-                [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
-                disp('Program thinks that rois are generated based on ORIGINAL movie size')
+                disp(['Recommending generate ROIs based on downsampled movie/frames!'])
+                disp(['Warning: If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
+                sflag = 2; %for manually defined seeds
             end
-            disp(['Recommending generate ROIs based on downsampled movie/frames!'])
-            disp(['Warning: If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
-             
+            
             %Generate correlation map for each seed
-            for r = 1:length(roi)     
-                if size(roi{r}, 1) ~= sz(1)
-                    mask = imresize(roi{r}, downSampleRatio, 'bilinear');
-                else
-                    mask = roi{r};
+            for r = 1:length(roi)
+                if sflag == 2
+                    if size(roi{r}, 1) ~= sz(1)
+                        mask = imresize(roi{r}, downSampleRatio, 'bilinear');
+                    else
+                        mask = roi{r};
+                    end
+                    maskId = find(mask > 0);
+                elseif sflag == 1
+                    %All automatically generated rois are based on original
+                    %image size
+                    maskId = ceil(roi(r,:).*downSampleRatio);
                 end
-                maskId = find(mask > 0);
-
                 %Get seed time series 
                 seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
 
@@ -987,10 +1002,20 @@ classdef movieData
                 hold on
 
                 %Label seed position
-                if size(roi{r}, 1) ~= sz(1)
-                    fill(roiPolygon{r}(:, 1).*downSampleRatio, roiPolygon{r}(:, 2).*downSampleRatio, 'y')
-                else
-                    fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
+                if sflag == 2
+                    if size(roi{r}, 1) ~= sz(1)
+                        fill(roiPolygon{r}(:, 1).*downSampleRatio, roiPolygon{r}(:, 2).*downSampleRatio, 'y')
+                    else
+                        fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
+                    end
+                elseif sflag == 1
+                    %create a polygon region to label the location of
+                    %current roi
+                    x1 = ceil(maskId(1)/size(cur_img,1));
+                    y1 = maskId(1) - floor(maskId(1)/size(cur_img,1))*size(cur_img,1);
+                    roiPolygon(:,1) = [x1,x1,x1+2,x1+2];
+                    roiPolygon(:,2) = [y1,y1+2,y1+2,y1];
+                    fill(roiPolygon(:,1),roiPolygon(:,2), 'y')
                 end
 
                 %Save the plot
@@ -1000,11 +1025,15 @@ classdef movieData
             end
             save('Correlation_Matrix.mat','corrMatrix');
         end
+      
+        
         
         function A = focusOnroi(A)
+        
         %Chop the matirx to the roi part
         %Inputs/Outputs:
         %A     3D Matrix
+        
             [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(A(:,:,1)); 
             A = A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed 
         end
