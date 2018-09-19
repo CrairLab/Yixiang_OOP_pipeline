@@ -46,6 +46,7 @@ classdef movieData
 %R13 09/15/18 Major improvement of SeedBased Corr, now can automatically
 %generate seeds if there is not manually defined ones. Compatiable with ROI
 %class R3 or higher 
+%R13 09/19/18 Modify function SeedBasedCorr
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -973,7 +974,16 @@ classdef movieData
             end
             
             %Generate correlation map for each seed
+            disp(['Detected ' num2str(length(roi)) 'seeds...'])
             for r = 1:length(roi)
+                
+                %Report progress
+                if mod(r,10) == 0
+                    disp(['Generating seeds#' num2str(r)])
+                end
+                
+                %sflag == 2 automatically generated seeds; sflag == 1
+                %manually generated seeds
                 if sflag == 2
                     if size(roi{r}, 1) ~= sz(1)
                         mask = imresize(roi{r}, downSampleRatio, 'bilinear');
