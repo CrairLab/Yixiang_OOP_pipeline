@@ -44,7 +44,7 @@ classdef ROI
                       disp('Unable to find/open the roi files.')
                    end
                 end
-                else
+            else
                 try
                    obj.ROIData = ReadImageJROI(filename);
                 catch
