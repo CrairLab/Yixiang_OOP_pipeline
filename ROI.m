@@ -12,6 +12,9 @@ classdef ROI
 %R3 09/15/18 New function genSeedsMap and genSeedingROIs (for automatically
 %generating seeds for seed-based corr analysis) Compatiable with movieData
 %class R13 or higher
+%R4 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
+%wrong. Corrected in related functions in both ROI and movieData Class
+%compatible with movieData R14 or higher 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -146,7 +149,7 @@ classdef ROI
         
        
        
-       function Seeds = genSeedingROIs(total_seeds)
+       function Seeds = genSeedingROIs(total_seeds,downSampleRatio)
 
         % Generate rois that serve as seeds for seed-based correlation maps
         %
@@ -157,30 +160,32 @@ classdef ROI
         %   Seeds           .mat file that store all the seeds 
         %
 
-            if nargin == 0
-                %Default roi num == 1000
-                total_seeds = 1000;
+            if nargin == 0        
+                total_seeds = 1600;
+                downSampleRatio = 0.5;
+            elseif nargin == 1
+                downSampleRatio = 0.5;
             end
 
             %Detect if there if .roi files or .zip files
             ROIRegime = ROI();
             [~, Mask] = ROI.ROIMask(ROIRegime.ROIData);
-
+            Mask = imresize(Mask, downSampleRatio, 'bilinear');
+            
             if isempty(ROIRegime.ROIData)
                 %default image size 540*640
-                Mask = zeros(540,640) + 1;
+                Mask = zeros(ceil(540*downSampleRatio),ceil(640*downSampleRatio)) + 1;
             end
             [m,n] = size(Mask);
             d = ceil(sqrt(m*n./100^2));
 
             num_rois = ROI.genSeedsMap(Mask,d);
             while num_rois > total_seeds
-                d = round(d*1.1);
+                d = ceil(d*1.1);
                 [num_rois,rois_ini] = ROI.genSeedsMap(Mask,d);
             end
-
-            %Expand 1-pixel indices to 4-pixel seeds
-            Seeds = [rois_ini,rois_ini+1,rois_ini+m,rois_ini+m+1];
+            
+            Seeds = rois_ini;
             save('Seeds.mat','Seeds');
             disp(['Generated ' num2str(num_rois) ' seeds in the defined region(s)'])
 

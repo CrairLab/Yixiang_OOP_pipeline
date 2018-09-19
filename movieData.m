@@ -47,6 +47,9 @@ classdef movieData
 %generate seeds if there is not manually defined ones. Compatiable with ROI
 %class R3 or higher 
 %R13 09/19/18 Modify function SeedBasedCorr
+%R`4 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
+%wrong. Corrected in related functions in both ROI and movieData Class
+%compatible with ROI R4 or higher 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -974,7 +977,7 @@ classdef movieData
             end
             
             %Generate correlation map for each seed
-            disp(['Detected ' num2str(length(roi)) 'seeds...'])
+            disp(['Detected ' num2str(length(roi)) ' seeds...'])
             for r = 1:length(roi)
                 
                 %Report progress
@@ -982,7 +985,7 @@ classdef movieData
                     disp(['Generating seeds#' num2str(r)])
                 end
                 
-                %sflag == 2 automatically generated seeds; sflag == 1
+                %sflag == 1 automatically generated seeds; sflag == 2
                 %manually generated seeds
                 if sflag == 2
                     if size(roi{r}, 1) ~= sz(1)
@@ -992,9 +995,9 @@ classdef movieData
                     end
                     maskId = find(mask > 0);
                 elseif sflag == 1
-                    %All automatically generated rois are based on original
-                    %image size
-                    maskId = ceil(roi(r,:).*downSampleRatio);
+                    %All automatically generated rois are based on
+                    %downsampled image size
+                    maskId = roi(r,:);
                 end
                 %Get seed time series 
                 seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
