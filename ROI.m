@@ -224,7 +224,7 @@ classdef ROI
             %imshow(mat2gray(EM))
             Mask_rois = Mask.*EM;
             rois_ini = find(Mask_rois == 1);
-            num_rois = sum(Mask_rois(:));
+            num_rois = floor(sum(Mask_rois(:)));
 
         end     
              
