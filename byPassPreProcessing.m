@@ -60,6 +60,7 @@ function byPassPreProcessing(id)
     end
     disp(['Processing done at:' pwd]);
     
+    clearvars;  
 end
 %%
 function renewCC(ppA_roi,outputFolder,filename)
