@@ -15,6 +15,8 @@ classdef ROI
 %R4 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
 %wrong. Corrected in related functions in both ROI and movieData Class
 %compatible with movieData R14 or higher 
+%R4 09/30/18 Modify the genSeedingROIs function to allow seeds sampling in 
+%sub region using input roi file named 'SubRegions.zip'
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -161,14 +163,22 @@ classdef ROI
         %
 
             if nargin == 0        
-                total_seeds = 1600;
+                total_seeds = 850;
                 downSampleRatio = 0.5;
             elseif nargin == 1
                 downSampleRatio = 0.5;
             end
 
-            %Detect if there if .roi files or .zip files
-            ROIRegime = ROI();
+            %Detect if there is pre-defined sub-region for seeds generation
+            %If nothing is detected, read in any .roi files or .zip files
+            %in current folder
+            ROIRegime = ROI('SubRegions.zip');
+            if isempty(ROIRegime.ROIData)
+                ROIRegime = ROI();
+                disp('Did not define sub-region for seeds sampling...')
+                disp('Generate seeds covering the whole roi...')
+            end
+            
             [~, Mask] = ROI.ROIMask(ROIRegime.ROIData);
             Mask = imresize(Mask, downSampleRatio, 'bilinear');
             
