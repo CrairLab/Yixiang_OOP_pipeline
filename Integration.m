@@ -48,6 +48,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %Taking advantage of the ME.identifier == 'MATLAB:unassignedOutputs'.
 %R10 07/10/18 If filtered matix exist, skip pre-processing. Change range of
 %orientation to be preserved (save those within 15-75 degree range)
+%R11 10/02/18 renewCC function is moved from the byPassPreProcessing.m to
+%the Integration class. Also now renewCC can output number of connected
+%components within each minutes of the movie (by a seperate function 
+%minuteFreqCC) in the Integration class. Compatible with
+%byPassPreProcessing R3 or higher versions.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -225,6 +230,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Black-white thresholding of pre-processed A
                 [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
                 clear Ga_TH_A;
+                
+                %Compute connected components within each minutes of the movie
+                Integration.minuteFreqCC(BW_ppA,ppA_roi,outputFolder,filename)
 
                 %Generate connected component
                 [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
@@ -732,6 +740,82 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Store connected components and regionprops STATS
             region.CC = CC;
             region.STATS = STATS;
+        end
+        
+        
+        function minuteFreqCC(BW_ppA,ppA_roi,outputFolder,filename)            
+        %   Compute connected components within each minutes of the movie
+        %
+        %   Inputs:
+        %       BW_ppA     pre-processed matrix black and white movie
+        %       outputFolder     folder that users define to save the oupputs
+        %       filename    filename from which current matrix is read in
+        %
+        %   Outputs:
+        %       .mat files that store the information average/standard
+        %       deviation of number of bands within 1 minutes of the movie
+        
+            iterN = ceil(size(BW_ppA,3)/600); %Number of iteration
+            CC_freq = [];       
+            for i = 1 : iterN
+                frame_ini = (i-1)*600 + 1;
+                frame_end = i*600;           
+                %Sample each minutes of the movie
+                try
+                    sub_BW_ppA = BW_ppA(:,:,frame_ini:frame_end);
+                    sub_ppA = ppA_roi(:,:,frame_ini:frame_end);
+                    frameN = 600;
+                catch
+                    sub_BW_ppA = BW_ppA(:,:,frame_ini:end);
+                    sub_ppA = ppA_roi(:,:,frame_ini:end);
+                    frameN = size(BW_ppA,3) - frame_ini + 1;
+                end
+                %Calculate CCs within each minutes
+                [cur_region,~] = Integration.GenerateCC(sub_ppA,sub_BW_ppA);
+                cur_CCN = cur_region.CC.NumObjects;
+                cur_CC_freq = cur_CCN *(600./frameN); %In case there aren't 600 frames in this sub-movie
+                CC_freq(i,1) = cur_CC_freq;
+            end
+            avg_minute_freq = mean(CC_freq);
+            std_minute_freq = std(CC_freq);
+            minute_stat = [avg_minute_freq,std_minute_freq];
+            checkname = ['CC_' filename(1:length(filename)-4) '_1minFreq.mat'];
+            save(fullfile(outputFolder,checkname),'CC_freq','minute_stat');
+        end
+        
+
+        function renewCC(ppA_roi,outputFolder,filename)
+        
+        %   Renew connected components in case the standards to define what is
+        %   a qualified CC is changed.
+        %   
+        %   Inputs:
+        %   ppA_roi     pre-processed matrix after being chopped to roi
+        %   outputFolder     folder that users define to save the oupputs
+        %   filename    filename from which current matrix is read in
+        %
+        %   Outputs:
+        %   .mat files that store regionprops, CCs, and BW_ppA matrix after
+        %   filtering.
+        
+
+                %Black-white thresholding of pre-processed A
+                [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
+                clear Ga_TH_A;
+                
+                %Compute connected components within each minutes of the movie
+                Integration.minuteFreqCC(BW_ppA,ppA_roi,outputFolder,filename) 
+
+                %Generate connected component
+                [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
+                checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
+                save(fullfile(outputFolder,checkname),'region');
+                clear TH_A region
+
+                %Save binary movie
+                checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
+                save(fullfile(outputFolder,checkname),'BW_ppA','-v7.3');
+                clear BW_ppA
         end
         
     end

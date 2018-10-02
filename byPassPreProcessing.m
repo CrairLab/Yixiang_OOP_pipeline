@@ -4,7 +4,10 @@ function byPassPreProcessing(id)
 %R1 07/11/18 can do renewCC, seed-based correlation, or generate pseudo color
 %movie based on the filtered matrix.
 %R2 07/13/18 Require methods from Integration and Movie classes 
-%
+%R3 10/02/18 Move the renewCC functino to Integration class, compatiable
+%with Integration class R11 or higher
+
+
 %Inputs:
 %id       determine which function to run
 %(id == 1, renewCC; id == 2, pseudo-clolor movie; id == 3 seed-based corr)
@@ -31,9 +34,9 @@ function byPassPreProcessing(id)
                 switch id
                     case 1
                         %Chop the matrix to contain only roi
-                         ppA_roi = movieData.focusOnroi(Ga_TH_A);
+                        ppA_roi = movieData.focusOnroi(Ga_TH_A);
                         %Renew connected components
-                        renewCC(ppA_roi,outputFolder,filename)
+                        Integration.renewCC(ppA_roi,outputFolder,filename)
                         disp(['Preprocessing done: ' filename]);
                     case 2
                         %Chop the matrix to contain only roi
@@ -62,25 +65,7 @@ function byPassPreProcessing(id)
     
     clearvars;  
 end
-%%
-function renewCC(ppA_roi,outputFolder,filename)
-%renew connected components
 
-        %Black-white thresholding of pre-processed A
-        [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
-        clear Ga_TH_A;
-
-        %Generate connected component
-        [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
-        checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
-        save(fullfile(outputFolder,checkname),'region');
-        clear TH_A region
-
-        %Save binary movie
-        checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
-        save(fullfile(outputFolder,checkname),'BW_ppA');
-        clear BW_ppA
-end
 
 %%
 function filelist = fileDetector()
