@@ -193,7 +193,7 @@ classdef ROI
             num_rois = ROI.genSeedsMap(Mask,d);
             
             %Iteratively increase the distance in order to get fewer seeds
-            %until the number seeds(rois) aquireds is smaller than
+            %until the number of seeds(rois) aquired is smaller than
             %total_seeds defined by the user
             while num_rois > total_seeds
                 d = ceil(d*1.05);
