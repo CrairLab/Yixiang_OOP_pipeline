@@ -17,6 +17,8 @@ classdef ROI
 %compatible with movieData R14 or higher 
 %R4 09/30/18 Modify the genSeedingROIs function to allow seeds sampling in 
 %sub region using input roi file named 'SubRegions.zip'
+%R4 10/01/18 Tackle the situation where num_rois is already smaller than 
+%total_seeds from the very beginning in function genSeedingROIs
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -197,8 +199,12 @@ classdef ROI
             %total_seeds defined by the user
             while num_rois > total_seeds
                 d = ceil(d*1.05);
-                [num_rois,rois_ini] = ROI.genSeedsMap(Mask,d);
+                [num_rois, ~] = ROI.genSeedsMap(Mask,d);
             end
+            
+            %In case the num_rois is already smaller than total_seeds at 
+            %the very beginning
+            [num_rois, rois_ini] = ROI.genSeedsMap(Mask,d);
             
             Seeds = rois_ini;
             save('Seeds.mat','Seeds');
