@@ -53,6 +53,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %components within each minutes of the movie (by a seperate function 
 %minuteFreqCC) in the Integration class. Compatible with
 %byPassPreProcessing R3 or higher versions.
+%R12 10/15/18 Apply top-hat filter to the movie depends on different scenarios 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -137,6 +138,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             else
                 %Check the flag to decide whether do frames-frequency-volume
                 %alignment
+                
+                %Make new folder 
+                outputFolder = fullfile(currentFolder,obj.outputFolder);
+                mkdir(outputFolder);
+                
                 if obj.flag
 
                     try
@@ -190,9 +196,15 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 clear A_DS
 
                 %Top-hat filtering
-                TH_A = Integration.TopHatFiltering(de_A);
-                disp('Top-hat filtering is done');
-                disp('')
+                if ~obj.flag
+                    TH_A = Integration.TopHatFiltering(de_A);
+                    disp('Top-hat filtering is done');
+                else
+                    sz = size(de_A); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
+                    TH_A = imtophat(de_A, se);
+                    disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
+                    disp('')
+                end
                 clear de_A
 
                 %Check flag to decide whether to generate frequency/volume maps
@@ -215,8 +227,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %clear TH_A
 
                 %Save filtered matrix
-                outputFolder = fullfile(currentFolder,obj.outputFolder);
-                mkdir(outputFolder);
                 checkname = [filename(1:length(filename)-4) '_filtered.mat'];
                 save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
     
@@ -267,7 +277,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             filename = obj.filename;
             Idx_baphstar = obj.Idx_baphstar;
             Idx_framesEy = obj.Idx_framesEy;
-            savename = [filename(1:length(filename)-4) '_Spike2BaphyIndex.mat'];
+            savename = [filename(1:length(filename)-4),'_Spike2BaphyIndex.mat'];
           
             %Handle imperfect recording, preserve good trails
             ActualTrailNumber = min([size(Idx_baphstar,2),size(obj.txt_line,1),floor(size(obj.A,3)/40)]);
@@ -332,7 +342,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 FramesByFreq{1,k} = FreqList(k,1);
                 FramesByFreq{2,k} = find(Idx_framesEy(2,:) == FreqList(k,1))';
             end
-            FreqFilename = [filename(1:length(filename)-4) '_FramesByFreq.mat'];
+            FreqFilename = [filename(1:length(filename)-4),'_FramesByFreq.mat'];
             save(FreqFilename,'FramesByFreq');
 
 
@@ -349,7 +359,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     FramesByFreqVolu{j,i} = temp_block;
                 end
             end
-            FreqVoluFilename = [filename(1:length(filename)-4) '_FramesByFreqVolu.mat'];
+            FreqVoluFilename = [filename(1:length(filename)-4),'_FramesByFreqVolu.mat'];
             save(FreqVoluFilename,'FramesByFreqVolu');
 
 
