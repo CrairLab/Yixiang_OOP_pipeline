@@ -19,6 +19,7 @@ classdef ROI
 %sub region using input roi file named 'SubRegions.zip'
 %R4 10/01/18 Tackle the situation where num_rois is already smaller than 
 %total_seeds from the very beginning in function genSeedingROIs
+%R4 10/15/18 Improve the ApplyMask function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -76,9 +77,19 @@ classdef ROI
         
              sz = size(A);
              if ~isempty(ROIData)
-                 [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
-                 Masks3D = repmat(Mask,[1 1 sz(3)]);
-                 A2 = Masks3D.* A;
+                 try
+                    [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
+                    Masks3D = repmat(Mask,[1 1 sz(3)]);
+                    A2 = Masks3D.* A;
+                 catch
+                    disp('Mask size does not conform with movie size');
+                    disp('Try to crop movie and mask');
+                    [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
+                    Mask = movieData.focusOnroi(Mask);
+                    Masks3D = repmat(Mask,[1 1 sz(3)]);
+                    A = movieData.focusOnroi(A);
+                    A2 = Masks3D.* A;
+                 end
              else
                  A2 = A;
              end
