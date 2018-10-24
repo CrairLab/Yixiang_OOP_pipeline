@@ -1,4 +1,4 @@
-function byPassPreProcessing(id)
+function byPassPreProcessing(id,param)
 %This function bypass pre-processing (assuming it has been done) and use
 %filtered matrix to do further analysis
 %R1 07/11/18 can do renewCC, seed-based correlation, or generate pseudo color
@@ -6,6 +6,8 @@ function byPassPreProcessing(id)
 %R2 07/13/18 Require methods from Integration and Movie classes 
 %R3 10/02/18 Move the renewCC functino to Integration class, compatiable
 %with Integration class R11 or higher
+%R4 10/24/18 Feed in param to be compatiable with R15 movieData class,
+%which allow GPU computing when doing seed-based correlation maps
 
 
 %Inputs:
@@ -18,6 +20,12 @@ function byPassPreProcessing(id)
     filelist = readtext('files.txt',' ');
     nmov = size(filelist,1);
     A_all = [];
+    
+    if ~exist('param','var')
+        param.spacialFactor = 2;
+        param.total_seeds = 500;
+        param.GPU_flag = 0;
+    end
 
 
     for f = 1:nmov
@@ -59,7 +67,7 @@ function byPassPreProcessing(id)
     end
     
     if id == 3
-        movieData.SeedBasedCorr(A_all)
+        movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag);
     end
     disp(['Processing done at:' pwd]);
     

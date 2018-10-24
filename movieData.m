@@ -47,9 +47,11 @@ classdef movieData
 %generate seeds if there is not manually defined ones. Compatiable with ROI
 %class R3 or higher 
 %R13 09/19/18 Modify function SeedBasedCorr
-%R`4 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
+%R14 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
 %wrong. Corrected in related functions in both ROI and movieData Class
-%compatible with ROI R4 or higher 
+%compatible with ROI R4 or higher
+%R15 10/24/18 New function to allow seed based correlation maps generated on GPU
+%Compatiable with byPassPreProcessing R4 or higher
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -910,38 +912,50 @@ classdef movieData
         end
 
         
-        function SeedBasedCorr(A,spacialFactor)
+        function SeedBasedCorr_GPU(A,spacialFactor,total_seeds,GPU_flag)
         % Generate seed-based correlation maps based on seeds and filtered matrix
         % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
         % are not available, try to automatically generate seeds that evenly
-        % cover given rois or the whole image
+        % cover given rois or the whole image. Compatiable with GPU
+        % computing if the GPU_flg == 1.
         %
         % Inputs:
         %   A                input matrix 
         %   spacialFactor    factor previously used for downsampling
+        %   total_seeds      number of seeds to be generated
+        %   GPU_flag         whether run on GPU
         %
         % Outpus:
         %   seed-based correlation maps
 
-            
+
             %downSampleRatio = 1/spacialFactor
-            if nargin == 2
+            if exist('spacialFactor','var')
                 downSampleRatio = 1/spacialFactor;
             else 
                 downSampleRatio = 0.5;
             end
+
+            if ~exist('total_seeds','var')
+                total_seeds = 400;
+            end
+
+            if ~exist('GPU_flag', 'var')
+                GPU_flag = 0;
+            end
+
             disp(['Note: Defalut downsampled ratio == ' num2str(downSampleRatio)]);
 
             sz = size(A);
             imgall = reshape(A, sz(1)*sz(2), sz(3));
-            
+
             %Detect seeds
             temp = ROI('Seeds.zip');
             ROI_all = temp.ROIData;
             if isempty(ROI_all)
                 disp('Seeds not provided (no manually defined seeds!)')
                 disp('Generating seeds evenly covering current rois...')
-                roi = ROI.genSeedingROIs();
+                roi = ROI.genSeedingROIs(total_seeds,downSampleRatio);
                 sflag = 1; % for automatically generated seeds
             else
 
@@ -975,16 +989,17 @@ classdef movieData
                 disp(['Warning: If ROIs are generated based on original sized movies, correlation maps could be wrong!'])
                 sflag = 2; %for manually defined seeds
             end
-            
+
             %Generate correlation map for each seed
             disp(['Detected ' num2str(length(roi)) ' seeds...'])
+
             for r = 1:length(roi)
-                
+
                 %Report progress
-                if mod(r,10) == 0
+                if mod(r,100) == 0
                     disp(['Generating seeds#' num2str(r)])
                 end
-                
+
                 %sflag == 1 automatically generated seeds; sflag == 2
                 %manually generated seeds
                 if sflag == 2
@@ -1002,16 +1017,34 @@ classdef movieData
                 %Get seed time series 
                 seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
 
-                %Generate correlation matrix
-                corrM = corr(imgall', seedTrace(r, :)');
+            end
 
-                corrMatrix(:, :, r) = reshape(corrM, sz(1), sz(2));
-
-                %Plot correlation map
+            %Generate correlation matrix
+            if GPU_flag
+                try
+                    corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
+                    disp('Run seeds based correlation on GPU')
+                catch
+                    corrM = corr(imgall',seedTrace');
+                    sz_3 = size(corrM,2);
+                    corrMatrix = reshape(corrM,sz(1), sz(2),sz_3);
+                    disp('Run on GPU failed, run seeds based correlation on CPU')
+                end
+            else
+                corrM = corr(imgall',seedTrace');
+                sz_3 = size(corrM,2);
+                corrMatrix = reshape(corrM,sz(1), sz(2),sz_3);
+                disp('Run seeds based correlation on CPU')
+            end
+            save('Correlation_Matrix.mat','corrMatrix');
+            
+            %Plot correlation map
+            for r = 1:length(roi)
                 h = figure; 
+                set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
                 imagesc(cur_img); colormap jet; colorbar; axis image
-                caxis([-0.3, 1]); title(['roi:', num2str(r)]);
+                caxis([-0.5, 1]); title(['roi:', num2str(r)]);
                 hold on
 
                 %Label seed position
@@ -1024,6 +1057,7 @@ classdef movieData
                 elseif sflag == 1
                     %create a polygon region to label the location of
                     %current roi
+                    maskId = roi(r,:);
                     x1 = ceil(maskId(1)/size(cur_img,1));
                     y1 = maskId(1) - floor(maskId(1)/size(cur_img,1))*size(cur_img,1);
                     roiPolygon(:,1) = [x1,x1,x1+2,x1+2];
@@ -1036,10 +1070,46 @@ classdef movieData
                 num_str(1) = '0';
                 saveas(h, ['roi', num_str, '.png'])     
             end
-            save('Correlation_Matrix.mat','corrMatrix');
+            
         end
       
         
+        
+        function corrMatrix = batchSeedsGPU(sz,seedTrace,imgall)
+        %Break a big matrix into smaller batch matrix due to limited GPU
+        %memory limitation
+        %
+        %Inputs:
+        %   sz             size of the original matrix
+        %   seedsTrace     traces of seeds
+        %   imgall         all images combined
+        %
+        %Outputs:
+        %   corrMatrix     correlation matrix
+        %
+            reset(gpuDevice);
+            pixelNum = sz(1)*sz(2);
+            %Determine batch size based on the length of the time series
+            batchSize = floor(10000./sz(3)*6000); %10000 is empirical, 6000 is from typical 10min movie
+            batchIdx = [0:batchSize:pixelNum];
+            seedTrace_GPU = gpuArray(seedTrace);
+            corrM = [];
+            for i = 1:length(batchIdx)
+                if i < length(batchIdx)
+                    cur_batch = imgall(batchIdx(i)+1:batchIdx(i+1),:);
+                else
+                    cur_batch = imgall(batchIdx(i)+1:end,:);
+                end
+
+                cur_batch_GPU = gpuArray(cur_batch);
+                cur_corrM = corr(cur_batch_GPU', seedTrace_GPU');
+                corrM = [corrM; gather(cur_corrM)];
+            end
+            sz_3 = size(corrM,2);
+            corrMatrix = reshape(corrM,sz(1), sz(2),sz_3);
+            reset(gpuDevice);
+        end
+
         
         function A = focusOnroi(A)
         
