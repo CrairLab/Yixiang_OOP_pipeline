@@ -11,11 +11,12 @@ function audPipe(param)
 %R5 05/25/18 Compatible with Integration R5+/movieData R8+/ROI R1+. Incorporate
 %wavelength switching. This version is 
 %R5 05/26/18 new input nmov to build the integration object
-%R6 06/13/18 input param (struct) instead of multiple variables   
+%R6 06/13/18 input param (struct) instead of multiple variables
+%R7 10/01/18 Using parfor instead of for loop 
     
     %If run on the HPC, use slurm to change the current directory
     try
-        currentFolder = 'E:\Yixiang\New scripts\New folder';
+        currentFolder = 'E:\New folder';
         cd(currentFolder);
     catch
         disp('No such directory...Running on pwd...')
@@ -38,7 +39,7 @@ function audPipe(param)
     IdxInAll_2 = cell(nmov,1);
     
     %Process each movie sequentially
-    for f = 1:nmov 
+    parfor f = 1:nmov 
         [Idx,Idx1,Idx2] = Integration.processMovies(f,flag,spacialFactor,nmov,rgd_flag);                   
         IdxInAll{f,1} = Idx;
         IdxInAll_1{f,1} = Idx1;
