@@ -52,6 +52,7 @@ classdef movieData
 %compatible with ROI R4 or higher
 %R15 10/24/18 New function to allow seed based correlation maps generated on GPU
 %Compatiable with byPassPreProcessing R4 or higher
+%R16 12/12/18 New function maxPooling2D to allow maximum pooling
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1119,6 +1120,45 @@ classdef movieData
         
             [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(A(:,:,1)); 
             A = A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:); %ppA: pre-processed 
+        end
+        
+        function A_pooled = maxPooling2D(A,r)
+
+        %   This function ouput the maximum-pooled matrix. The raidus of sliding
+        %   window for maximum pooling is defined by r (or in default == 2).
+        %
+        %   Input:
+        %       A   Input matrix (2D)
+        %       r   radius of the sliding window
+        %    
+        %   Output:
+        %       A_pooled = maximum pooled matrix
+        %
+        if nargin == 1
+            r = 2;
+        end
+        sz = size(A);
+        %Create a padding matrix
+        width_new = sz(1) + 2*r;
+        length_new = sz(2) + 2*r;
+        sz_new = [width_new, length_new];
+        A_pd = NaN(sz_new);
+        A_pd(1+r:width_new-r,1+r:length_new-r) = A;
+
+        A_pooled = zeros(sz);
+
+        %Slide the window through every each pixels of the original matrix
+        for i = 1+r:width_new-r
+            for j = 1+r:length_new-r
+                %Calculate the maximum value in the current window
+                curWindow = A_pd(i-r:i+r,j-r:j+r);
+                max_curWindow = max(curWindow(:));
+
+                %Asign this value to the corresponding pixel in the pooled matrix
+                A_pooled(i-r,j-r) = max_curWindow;
+            end
+        end
+
         end
   
     end
