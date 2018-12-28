@@ -53,6 +53,7 @@ classdef movieData
 %R15 10/24/18 New function to allow seed based correlation maps generated on GPU
 %Compatiable with byPassPreProcessing R4 or higher
 %R16 12/12/18 New function maxPooling2D to allow maximum pooling
+%R16 12/28/18 Renew the function makePseudoColorMovie by adding zscoring
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -888,17 +889,23 @@ classdef movieData
 
         end
         
-        function makePseudoColorMovie(A,movieName)
+        function makePseudoColorMovie(A,movieName,FrameRate)
             
-        % Make pseudo-color (jet 256) movie from matrix A
+        % Make pseudo-color (jet 256) movie from zscored matrix A
         % Inputs:
         %   A    3D matrx (grayscale)
         %   movieName   Name of the movie
         %
-            if nargin == 1
+            if ~exist('movieName','var')
                 movieName = 'outputPseudocolorMovie';
             end
-            [X,~] = gray2ind(A);
+            
+            if ~exist('FrameRate','var')
+                FrameRate = 50;
+            end
+            
+            %Doing zscoring here
+            [X,~] = gray2ind(zscore(A,1,3));
             sz = size(X);
             new_X = zeros(sz(1),sz(2),3,sz(3));
             for i = 1:sz(3)
@@ -907,6 +914,7 @@ classdef movieData
             end
             mov = immovie(new_X);
             v = VideoWriter(movieName,'Motion JPEG AVI');
+            v.FrameRate = FrameRate;
             open(v)
             writeVideo(v,mov);
             close(v)
