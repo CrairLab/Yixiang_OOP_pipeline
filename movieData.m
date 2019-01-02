@@ -830,6 +830,7 @@ classdef movieData
             if nargin<2
                 iniDim = 6;
             end
+            disp(['Initial Dimention = ' num2str(iniDim)]);
             
             %Identify the vertex of the minimum rectangle containing roi
             cur_img = A(:,:,1);
@@ -851,7 +852,10 @@ classdef movieData
             %Recover the roi to the original image size
             A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:) = A_roi_rcs;
             %A(A == 0) = nan;
-
+            
+            %Save U,S,V
+            U = reshape(U,[sz(1), sz(2), size(U,2)]);
+            save('SVD_decomp.mat','U','S','V');
             disp('');
 
         end

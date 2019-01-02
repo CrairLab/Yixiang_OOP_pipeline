@@ -55,6 +55,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %byPassPreProcessing R3 or higher versions.
 %R12 10/15/18 Apply top-hat filter to the movie depends on different scenarios
 %Also modify
+%R13 12/28/18 Change the preprocessing filters order  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -82,7 +83,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
           
             %Wavelength switching
             if flag == 2
-                movieObj = movieData(filename,1); A_ = movieObj.A; %Here if input flag== 2, will not further process
+                movieObj = movieData(filename,1); A_ = movieObj.A; %Here if input flag == 2, will not further process
                 ROIObj = ROI(); ROI_ = ROIObj.ROIData; %Here if input flag == 2, will not further process
             else
                 A_ = []; ROI_ = [];
@@ -184,48 +185,55 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
-                clear A_corrct
+                %clear A_corrct
 
                 %Downsampling
                 A_DS = Integration.downSampleMovie(A_ROI,spacialFactor);
                 clear A_ROI
-
-                %SVD denosing of down-sampled A
-                de_A = Integration.roiSVD(A_DS);
-                disp('SVD denosing is done')
-                disp('')
-                clear A_DS
-
+                
                 %Top-hat filtering
                 if ~obj.flag
-                    TH_A = Integration.TopHatFiltering(de_A);
-                    disp('Top-hat filtering is done');
+                    %TH_A = Integration.TopHatFiltering(A_DS);
+                    TH_A = A_DS;
+                    %disp('Top-hat filtering is done');
+                    disp('Not doing top-hat filtering here')
                 else
-                    sz = size(de_A); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
-                    TH_A = imtophat(de_A, se);
+                    sz = size(A_DS); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
+                    TH_A = imtophat(A_DS, se);
                     disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
                     disp('')
                 end
+                
+                %Impose dFOverF to downsampled matrix
+                A_dFoF = Integration.grossDFoverF(TH_A);
+                disp('Gloabal dFoverF is done')
+                disp(' ')
+
+                %SVD denosing of down-sampled A
+                de_A = Integration.roiSVD(A_dFoF, 3);
+                disp('SVD denosing is done')
+                disp('')
+                clear A_DS
+                
+                %Z-scoring de_A along the time dimension
+                de_A = zscore(de_A,1,3);
+                disp('Z-scored reconstructed matrix')
                 clear de_A
 
                 %Check flag to decide whether to generate frequency/volume maps
                 if obj.flag
                     %Integration.FreqColorMap(TH_A,filename,obj);
-                    TH_A(TH_A == 0) = nan; % for better intra-Video dFOverF
-                    Integration.FreqVoluColorMap(TH_A,filename,obj.nmov);
-                    TH_A(isnan(TH_A)) = 0; %resume for later filtering
+                    de_A(de_A == 0) = nan; % for better intra-Video dFOverF
+                    Integration.FreqVoluColorMap(de_A,filename,obj.nmov);
+                    de_A(isnan(de_A)) = 0; %resume for later filtering
                 end
 
-                %Impose dFOverF to top-hat filtered matrix
-                TH_A = Integration.grossDFoverF(TH_A);
-                disp('Gloabal dFoverF is done')
-                disp(' ')
-
                 %Gaussian smoothing
-                Ga_TH_A = Integration.GauSmoo(TH_A,2); %set sigma = 2
+                Ga_TH_A = Integration.GauSmoo(de_A,2); %set sigma = 2
                 disp('Gaussian smoothing is done');
                 disp(' ')
                 %clear TH_A
+                clear de_A
 
                 %Save filtered matrix
                 checkname = [filename(1:length(filename)-4) '_filtered.mat'];
