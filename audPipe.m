@@ -16,7 +16,7 @@ function audPipe(param)
     
     %If run on the HPC, use slurm to change the current directory
     try
-        currentFolder = 'E:\New folder';
+        %currentFolder = 'E:\New folder';
         cd(currentFolder);
     catch
         disp('No such directory...Running on pwd...')
