@@ -54,6 +54,7 @@ classdef movieData
 %Compatiable with byPassPreProcessing R4 or higher
 %R16 12/12/18 New function maxPooling2D to allow maximum pooling
 %R16 12/28/18 Renew the function makePseudoColorMovie by adding zscoring
+%R16 01/03/18 Modify the roiSVD function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -811,7 +812,7 @@ classdef movieData
         
         
         
-        function A = roiSVD(A, iniDim)
+        function [A,U,S,V] = roiSVD(A, iniDim)
 
         %    This function automatically identify the minimum rectangle containing roi
         %    and then do SVD denosing to only the roi part of the original matrix. It 
@@ -828,7 +829,7 @@ classdef movieData
             %iniDim defines from which dimension shall the function starts
             %to preserve
             if nargin<2
-                iniDim = 6;
+                iniDim = 3;
             end
             disp(['Initial Dimention = ' num2str(iniDim)]);
             
@@ -845,7 +846,7 @@ classdef movieData
             disp(['Preserved dimensions = ' num2str(psv_dim)]);
             %tic; [U,S,V] = svds(A_roi,psv_dim); toc;
             tic; [U,S,V] = svds(A_roi',psv_dim); toc;
-
+            
             %Reconstruct the roi pairt using the the 4th to the last component
             A_roi_rcs = U(:,iniDim:end)*S(iniDim:end,iniDim:end)*V(:,iniDim:end)';
             %A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
@@ -858,7 +859,7 @@ classdef movieData
             %Save U,S,V
             %U = reshape(U,[sz(1), sz(2), size(U,2)]);
             V = reshape(V,[sz(1), sz(2), size(V,2)]);
-            save('SVD_decomp.mat','U','S','V');
+            %save('SVD_decomp.mat','U','S','V');
             disp('');
 
         end

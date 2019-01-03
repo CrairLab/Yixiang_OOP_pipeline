@@ -55,7 +55,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %byPassPreProcessing R3 or higher versions.
 %R12 10/15/18 Apply top-hat filter to the movie depends on different scenarios
 %Also modify
-%R13 12/28/18 Change the preprocessing filters order  
+%R13 12/28/18 Change the preprocessing filters order 
+%R13 01/03/18 Modified roiSVD function in movieData
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -210,7 +211,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp(' ')
 
                 %SVD denosing of down-sampled A
-                de_A = Integration.roiSVD(A_dFoF, 3);
+                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, 3);
+                checkname = [filename(1:length(filename)-4) '_SVD.mat'];
+                save(fullfile(outputFolder,checkname),'U','S','V');
                 disp('SVD denosing is done')
                 disp('')
                 clear A_DS
