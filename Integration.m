@@ -218,7 +218,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Z-scoring de_A along the time dimension
                 de_A = zscore(de_A,1,3);
                 disp('Z-scored reconstructed matrix')
-                clear de_A
 
                 %Check flag to decide whether to generate frequency/volume maps
                 if obj.flag

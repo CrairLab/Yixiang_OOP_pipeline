@@ -843,18 +843,21 @@ classdef movieData
             A_roi(isnan(A_roi)) = 0;
             psv_dim = round(size(cur_img,1)*size(cur_img,2)/800); %empirically suffcient to have a good-quality reconstruction
             disp(['Preserved dimensions = ' num2str(psv_dim)]);
-            tic; [U,S,V] = svds(A_roi,psv_dim); toc;
+            %tic; [U,S,V] = svds(A_roi,psv_dim); toc;
+            tic; [U,S,V] = svds(A_roi',psv_dim); toc;
 
             %Reconstruct the roi pairt using the the 4th to the last component
             A_roi_rcs = U(:,iniDim:end)*S(iniDim:end,iniDim:end)*V(:,iniDim:end)';
-            A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
+            %A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
+            A_roi_rcs = reshape(A_roi_rcs',[sz(1),sz(2),sz(3)]);
 
             %Recover the roi to the original image size
             A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:) = A_roi_rcs;
             %A(A == 0) = nan;
             
             %Save U,S,V
-            U = reshape(U,[sz(1), sz(2), size(U,2)]);
+            %U = reshape(U,[sz(1), sz(2), size(U,2)]);
+            V = reshape(V,[sz(1), sz(2), size(V,2)]);
             save('SVD_decomp.mat','U','S','V');
             disp('');
 
