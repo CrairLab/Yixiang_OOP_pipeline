@@ -57,6 +57,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %Also modify
 %R13 12/28/18 Change the preprocessing filters order 
 %R13 01/03/18 Modified roiSVD function in movieData
+%R13 01/03/18 Improved roi-masking after downsampling
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -207,16 +208,20 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 
                 %Impose dFOverF to downsampled matrix
                 A_dFoF = Integration.grossDFoverF(TH_A);
+                %Get the downsampled roi mask
+                ds_Mask = repmat(~isnan(A_dFoF(:,:,1)),[1,1,size(A_dFoF,3)]);
                 disp('Gloabal dFoverF is done')
                 disp(' ')
 
                 %SVD denosing of down-sampled A
-                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, 3);
+                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, 2);
+                %Reaply downsampled roi mask
+                de_A = de_A.*ds_Mask;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
                 save(fullfile(outputFolder,checkname),'U','S','V');
                 disp('SVD denosing is done')
                 disp('')
-                clear A_DS
+                clear A_DS A_dFoF
                 
                 %Z-scoring de_A along the time dimension
                 de_A = zscore(de_A,1,3);
