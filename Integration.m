@@ -225,7 +225,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
-                save(fullfile(outputFolder,checkname),'U','S','V');
+                save(fullfile(outputFolder,checkname),'U','S','V','iniDim');
                 disp('SVD denosing is done')
                 disp('')
                 clear A_DS A_dFoF
