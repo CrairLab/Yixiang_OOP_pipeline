@@ -58,6 +58,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R13 12/28/18 Change the preprocessing filters order 
 %R13 01/03/18 Modified roiSVD function in movieData
 %R13 01/03/18 Improved roi-masking after downsampling
+%R14 01/04/18 Improved param passing 
+%Compatiable with audPipe R8 or higher!
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -109,7 +111,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
           
         end
         
-        function FramesByFreqVolu = prePipe(obj,spacialFactor,reg_flag)
+        function FramesByFreqVolu = prePipe(obj,param)
         
         %    Preprocessing pipeline to handle a single auditory project
         %    movie. Process includes: photobleaching correction,
@@ -120,8 +122,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %    
         %    Inputs:
         %        obj               current object
-        %        spacialFactor     for spacial downsampling
-        %        reg_flag          rigid registration flag
+        %        param             parameter struct to feed in different
+        %                          function
         %   
         %   Outputs:
         %        FramesByFreqVolu  sorted frames by frequency and volume
@@ -175,7 +177,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('Photobleaching corrected!');
 
                 % Decide whether do rigid registration or not
-                if reg_flag 
+                if param.rgd_flag 
                     if ~exist('Fixed_frame.mat','file')
                         A_fixed = A_corrct(:,:,1);
                         save('Fixed_frame.mat','A_fixed');
@@ -190,7 +192,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %clear A_corrct
 
                 %Downsampling
-                A_DS = Integration.downSampleMovie(A_ROI,spacialFactor);
+                A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
                 clear A_ROI
                 
                 %Top-hat filtering
@@ -214,7 +216,12 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp(' ')
 
                 %SVD denosing of down-sampled A
-                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, 2);
+                try 
+                    iniDim = param.iniDim;
+                catch
+                    iniDim = 1;
+                end
+                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, iniDim);
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
@@ -550,20 +557,20 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         
         end
         
-        function [Idx,Idx1,Idx2] = processMovies(f,flag,spacialFactor,nmov,reg_flag)
+        function [Idx,Idx1,Idx2] = processMovies(f,nmov,param)
         
         %    Proccess movies (called by audPipe) seuqentially. This can
         %    handle different scenarios providing different flags.
         %    
         %    Inputs:
         %        f      The f-th movie to process
-        %        flag   Represents different experimental setups
-        %        spacialFactor     For downsampling
-        %    
+        %        param  parameters that users feed in
+        %        
         %    Outputs:
         %        Idx,Idx1,Idx2    Frames indices sorted by frequencies or volume
         
             Idx = []; Idx1 = []; Idx2 = [];
+            flag = param.flag;
             if flag == 2
                 IntgA = Integration(f,flag,nmov);
                 IntgA.A = [];
@@ -580,7 +587,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     mkdir(newFolder);
                 end
                 cd(newFolder)
-                Idx1 = IntgA.prePipe(spacialFactor,reg_flag);
+                Idx1 = IntgA.prePipe(param);
                 cd(currentFolder);      
                 fprintf(['No.' num2str(f) ' Channel 1 is finished\n']);
 
@@ -595,7 +602,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     mkdir(newFolder);
                 end
                 cd(newFolder)
-                Idx2 = IntgA.prePipe(spacialFactor,reg_flag);
+                Idx2 = IntgA.prePipe(param);
                 cd(currentFolder);   
                 fprintf(['No.' num2str(f) ' Channel 2 is finished\n']);
 
@@ -604,7 +611,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             else
                 %Single channel recording
                 IntgA = Integration(f,flag,nmov);
-                Idx = IntgA.prePipe(spacialFactor,reg_flag);              
+                Idx = IntgA.prePipe(param);              
                 fprintf(['No.' num2str(f) ' is finished\n']);
                 disp('');
                 clear IntgA;

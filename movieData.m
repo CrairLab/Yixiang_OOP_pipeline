@@ -829,7 +829,7 @@ classdef movieData
             %iniDim defines from which dimension shall the function starts
             %to preserve
             if nargin<2
-                iniDim = 3;
+                iniDim = 1;
             end
             disp(['Initial Dimention = ' num2str(iniDim)]);
             

@@ -12,7 +12,9 @@ function audPipe(param)
 %wavelength switching. This version is 
 %R5 05/26/18 new input nmov to build the integration object
 %R6 06/13/18 input param (struct) instead of multiple variables
-%R7 10/01/18 Using parfor instead of for loop 
+%R7 10/01/18 Using parfor instead of for loop
+%R8 01/04/18 Improve param passing 
+%Compatiable with Integration R14 or higher!
     
     %If run on the HPC, use slurm to change the current directory
     try
@@ -21,11 +23,7 @@ function audPipe(param)
     catch
         disp('No such directory...Running on pwd...')
     end
-    
-    spacialFactor = param.spacialFactor; %For downsampling
-    flag = param.flag; %Flag for different processing procedures 
-    rgd_flag = param.rgd_flag; %Flag for doing/ not doing rigid registration
-    
+
     %Detect movie/baphy/spike2/roi files 
     Integration.fileDetector();
     
@@ -40,7 +38,7 @@ function audPipe(param)
     
     %Process each movie sequentially
     parfor f = 1:nmov 
-        [Idx,Idx1,Idx2] = Integration.processMovies(f,flag,spacialFactor,nmov,rgd_flag);                   
+        [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
         IdxInAll{f,1} = Idx;
         IdxInAll_1{f,1} = Idx1;
         IdxInAll_2{f,1} = Idx2;   
