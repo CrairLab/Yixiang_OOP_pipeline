@@ -60,6 +60,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R13 01/03/18 Improved roi-masking after downsampling
 %R14 01/04/18 Improved param passing 
 %Compatiable with audPipe R8 or higher!
+%R14 01/08/18 Added ICA analysis
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -214,6 +215,15 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 ds_Mask = repmat(~isnan(A_dFoF(:,:,1)),[1,1,size(A_dFoF,3)]);
                 disp('Gloabal dFoverF is done')
                 disp(' ')
+                
+                %ICA analysis of the matrix
+                try
+                    [icasig, M, W, corr_map] = movieData.getICA(A_dFoF);
+                    checkname = [filename(1:length(filename)-4) '_ICA.mat'];
+                    save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
+                catch
+                    disp('ICA analysis failed')
+                end
 
                 %SVD denosing of down-sampled A
                 try 
@@ -224,6 +234,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 [de_A,U,S,V] = Integration.roiSVD(A_dFoF, iniDim);
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
+                de_A(de_A == 0) = nan;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
                 save(fullfile(outputFolder,checkname),'U','S','V','param');
                 disp('SVD denosing is done')

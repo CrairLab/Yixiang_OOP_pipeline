@@ -55,6 +55,7 @@ classdef movieData
 %R16 12/12/18 New function maxPooling2D to allow maximum pooling
 %R16 12/28/18 Renew the function makePseudoColorMovie by adding zscoring
 %R16 01/03/18 Modify the roiSVD function
+%R17 01/08/18 Add ICA analysis function getICA 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1150,31 +1151,71 @@ classdef movieData
         %   Output:
         %       A_pooled = maximum pooled matrix
         %
-        if nargin == 1
-            r = 2;
-        end
-        sz = size(A);
-        %Create a padding matrix
-        width_new = sz(1) + 2*r;
-        length_new = sz(2) + 2*r;
-        sz_new = [width_new, length_new];
-        A_pd = NaN(sz_new);
-        A_pd(1+r:width_new-r,1+r:length_new-r) = A;
+            if nargin == 1
+                r = 2;
+            end
+            sz = size(A);
+            %Create a padding matrix
+            width_new = sz(1) + 2*r;
+            length_new = sz(2) + 2*r;
+            sz_new = [width_new, length_new];
+            A_pd = NaN(sz_new);
+            A_pd(1+r:width_new-r,1+r:length_new-r) = A;
 
-        A_pooled = zeros(sz);
+            A_pooled = zeros(sz);
 
-        %Slide the window through every each pixels of the original matrix
-        for i = 1+r:width_new-r
-            for j = 1+r:length_new-r
-                %Calculate the maximum value in the current window
-                curWindow = A_pd(i-r:i+r,j-r:j+r);
-                max_curWindow = max(curWindow(:));
+            %Slide the window through every each pixels of the original matrix
+            for i = 1+r:width_new-r
+                for j = 1+r:length_new-r
+                    %Calculate the maximum value in the current window
+                    curWindow = A_pd(i-r:i+r,j-r:j+r);
+                    max_curWindow = max(curWindow(:));
 
-                %Asign this value to the corresponding pixel in the pooled matrix
-                A_pooled(i-r,j-r) = max_curWindow;
+                    %Asign this value to the corresponding pixel in the pooled matrix
+                    A_pooled(i-r,j-r) = max_curWindow;
+                end
             end
         end
+        
+        
+        
+        function [icasig, M, W, corr_map] = getICA(A)
+        %   Do fastICA and generate correlation maps with computed independent
+        %   components
+        %
+        %   Inputs:
+        %       A          3D matrix
+        %
+        %   Outputs:
+        %       Save correlation maps with each independent components
+        %       Save the computed ICA results
+        
+            %further downsampled the movie
+            disp('For ICA analysis, further downsample the data by the factor of 2(spacial+temporal)')
+            A_DS = Integration.downSampleMovie(A,2,2);
+            %Restrict the area to only roi region
+            [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(A_DS(:,:,1));
+            A_roi = A_DS(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:);
+            sz = size(A_roi);
+            A_re = reshape(A_roi,[sz(1)*sz(2),sz(3)]);
 
+            if ~exist('ICA_results.mat','file')    
+                %Get rid of nan in the matrix
+                A_re_zv = A_re;
+                A_re_zv(isnan(A_re_zv)) = 0;
+                lastEig = max(round(sz(1)*sz(2)/800),50);
+                tic;
+                [icasig, M, W] = fastica(A_re_zv ,'lastEig', lastEig, 'numOfIC', 50);
+                toc;
+                save('ICA_results.mat','icasig','M','W')
+            else
+                load('ICA_results.mat');
+            end
+
+            %Generating correlation map with each independent component
+            corr_map = corr(icasig',A_re');     
+            
+            disp('ICA processing is done')
         end
   
     end
