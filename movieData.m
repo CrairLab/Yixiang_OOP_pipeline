@@ -1124,6 +1124,7 @@ classdef movieData
                      
                           
            %Plot correlation map
+           disp(['Actual number of correlation maps = ' num2str(length(roi))])
             for r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');

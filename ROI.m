@@ -194,7 +194,9 @@ classdef ROI
             end
             
             [~, Mask] = ROI.ROIMask(ROIRegime.ROIData);
-            Mask = imresize(Mask, downSampleRatio, 'bilinear');
+            Mask = movieData.spatialDown(Mask,1/downSampleRatio);
+            Mask = (Mask == 1);
+            %Mask = imresize(Mask, downSampleRatio, 'bilinear');
             
             if isempty(ROIRegime.ROIData)
                 %default image size 540*640
