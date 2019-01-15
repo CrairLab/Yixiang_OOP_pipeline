@@ -15,6 +15,7 @@ function audPipe(param)
 %R7 10/01/18 Using parfor instead of for loop
 %R8 01/04/18 Improve param passing 
 %Compatiable with Integration R14 or higher!
+%R8 01/15/18 save param to .mat file
     
     %If run on the HPC, use slurm to change the current directory
     try
@@ -35,6 +36,9 @@ function audPipe(param)
     IdxInAll = cell(nmov,1);
     IdxInAll_1 = cell(nmov,1);
     IdxInAll_2 = cell(nmov,1);
+    
+    %Save current parameters
+    save('parameter.mat','param');
     
     %Process each movie sequentially
     parfor f = 1:nmov 

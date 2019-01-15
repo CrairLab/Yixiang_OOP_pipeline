@@ -20,6 +20,7 @@ classdef ROI
 %R4 10/01/18 Tackle the situation where num_rois is already smaller than 
 %total_seeds from the very beginning in function genSeedingROIs
 %R4 10/15/18 Improve the ApplyMask function
+%R4 01/18/19 Modify the ROIMask function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -74,7 +75,7 @@ classdef ROI
        %        A      Input movie (3D)
        %        ROIData     Cell array containing ROI structures
        
-        
+               
              sz = size(A);
              if ~isempty(ROIData)
                  try
@@ -97,7 +98,7 @@ classdef ROI
        end
        
        
-       function [index,Mask] = ROIMask(ROIData,sz)
+       function [subs,Mask] = ROIMask(ROIData,sz)
        
        %    Get 2D ROI mask from ROIData. If there are more than 1 ROI,
        %    merge the ROIs to a single mask. ROI is considered a polycon
@@ -126,7 +127,7 @@ classdef ROI
                Coordinates = ThisROIStruct.mnCoordinates;
                Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),sz(1),sz(2));                            
            end
-           index = find(Mask);
+           [subs(:,1),subs(:,2)] = ind2sub(sz,find(Mask));
        end
        
        function [roi,roiPolygon] = generateROIArray(ROI_all,sz)
@@ -258,8 +259,8 @@ classdef ROI
             rois_ini = find(Mask_rois == 1);
             num_rois = floor(sum(Mask_rois(:)));
 
-        end     
-             
+        end
+        
    end
        
 end

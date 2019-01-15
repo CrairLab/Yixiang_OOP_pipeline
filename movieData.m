@@ -54,8 +54,10 @@ classdef movieData
 %Compatiable with byPassPreProcessing R4 or higher
 %R16 12/12/18 New function maxPooling2D to allow maximum pooling
 %R16 12/28/18 Renew the function makePseudoColorMovie by adding zscoring
-%R16 01/03/18 Modify the roiSVD function
-%R17 01/08/18 Add ICA analysis function getICA 
+%R16 01/03/19 Modify the roiSVD function
+%R17 01/08/19 Add ICA analysis function getICA 
+%R18 01/15/19 modify several functino to allow better parellel computing.
+%Add new function plotCorrM 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -213,7 +215,7 @@ classdef movieData
             A = reshape(A,sz);   
             Iarr = zeros(size(A));
 
-            for fr = 1:sz(3) %option:parfor, do NOT use parfor it is 3x slower
+            parfor fr = 1:sz(3) %option:for, do NOT use for it is 3x slower
                I = A(:,:,fr);
                    I2 = gaussSmooth(I,sigma,'same');
                Iarr(:,:,fr) = I2;
@@ -493,11 +495,11 @@ classdef movieData
         
         %    Dowansample the input matrix A
         %    Temporal downsampling: choose frames spanning by a specified factor
-        %    Spacial downsampling: averaged pixels in a s-by-s window
+        %    spatial downsampling: averaged pixels in a s-by-s window
         %
         %    Inputs:
         %        A   Input movies(3D matrix)
-        %        s   spacial downsampling factor 
+        %        s   spatial downsampling factor 
         %        t   temporal downsampling factor
         %
         %    Outputs:
@@ -506,32 +508,32 @@ classdef movieData
             switch nargin
                 case 1
                     disp(['Spaceil Factor: 2' ])
-                    outputA = movieData.spacialDown(A,2);                    
+                    outputA = movieData.spatialDown(A,2);                    
                 case 2
-                    disp('Only do spacial downsampling here!')
+                    disp('Only do spatial downsampling here!')
                     disp(['Spaceil Factor:' num2str(s)])
-                    outputA = movieData.spacialDown(A,s);
+                    outputA = movieData.spatialDown(A,s);
                 case 3
                     disp(['Spaceil Factor:' num2str(s)])
                     disp(['Temporal Factor:' num2str(t)])
                     outputA = movieData.temporalDown(A,t);
-                    outputA = movieData.spacialDown(outputA,s);
+                    outputA = movieData.spatialDown(outputA,s);
                     
             end
         end
 
 
-        function downA = spacialDown(A,s)
+        function downA = spatialDown(A,s)
         
         %    Downsample the input matrix A by factor s. The idea is assign a new pixel
         %    by averaging pixels within a s-by-s whindow.
         %
         %    Inputs: 
         %        A   input matrix
-        %        s   spacial downsampling factor
+        %        s   spatial downsampling factor
         %
         %    Output:
-        %        downA    spacially downsampled matrix
+        %        downA    spatially downsampled matrix
 
             sz = size(A);
             newsz1 = mod(-sz(1),s)+sz(1);
@@ -540,8 +542,12 @@ classdef movieData
             IdxEnd2 = ceil(sz(2)/s)*s;
             A_newk = nan(newsz1,newsz2);
             A_newk_avg = nan(newsz1/s,newsz2/s,s^2);
-            downA = nan(newsz1/s,newsz2/s,sz(3));
+            %downA = nan(newsz1/s,newsz2/s,sz(3));
             downA = [];
+            
+            if length(sz)<3
+                sz(3) = 1;
+            end
 
             for k = 1:sz(3)    
                 A_k = A(:,:,k);
@@ -652,7 +658,7 @@ classdef movieData
             end
             
             singleThresholding = @(A, thresh) reshape(zscore(A(:)),size(A))>thresh;
-            for k = 1:sz(3)               
+            parfor k = 1:sz(3)               
                 A(:,:,k) = singleThresholding(A(:,:,k),thresh);                            
             end
 
@@ -691,7 +697,7 @@ classdef movieData
             disp(['Thresholding factor = ' num2str(factor)]);
             
             %filter out pixels <= mean + factor * std
-            for i = 1:sz(3)
+            parfor i = 1:sz(3)
                 currMatrix = A(:,:,i);
                 pixelsN = sz(1) * sz(2) - sum(isnan(currMatrix(:)));
                 pixelsOverT = sum(currMatrix(:) > (bgMean + factor * bgStd));
@@ -722,7 +728,7 @@ classdef movieData
             sz = size(A);
             bwA = zeros(sz);
             factors_all = zeros(sz(3),1);
-            for i = 1:sz(3)
+            parfor i = 1:sz(3)
                 %Acuqire current matrix
                 currMatrix = A(:,:,i);
                 currMatrix(currMatrix == 0) = nan;
@@ -754,9 +760,11 @@ classdef movieData
         %    Doing gross dFoverF calculation.
         
             A_mean = nanmean(A,3);
-            for i = 1:size(A,3)
-            	A(:,:,i) = (A(:,:,i) - A_mean)./A_mean;
-            end
+            sz = size(A);
+            A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
+            A_mean = repmat(reshape(A_mean,[sz(1)*sz(2),1]),[1,sz(3)]);
+            A = reshape(A_re./A_mean - 1,sz);
+            
         end
         
         
@@ -773,7 +781,7 @@ classdef movieData
  
             [optimizer, metric] = imregconfig('monomodal');
             tic;
-            for i = 1:size(A,3)
+            parfor i = 1:size(A,3)
                 if ~mod(i,400)
                     disp(['Finish rigid registration at frame #' num2str(i)]);
                 end
@@ -793,21 +801,20 @@ classdef movieData
         %    Outputs:
         %        A          bleaching corrected matrix
             
-            mean_series = zeros(1,size(A,3));
-            x = [1:size(A,3)];
+            sz= size(A);
+            A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
+            x = 1:sz(3);
             
-            for i = 1:size(A,3)
-                cur_A = A(:,:,i);
-                mean_series(i) = nanmean(cur_A(:));
-            end
+            mean_series = mean(A_re,1);
             
             f = fit(x',mean_series','exp1');
             trend = f.a.*exp(f.b.*x);
             trend = trend./min(trend);
             
-            for i = 1:size(A,3)
-                A(:,:,i) = A(:,:,i)./trend(i);
-            end
+            
+            trend = repmat(trend,[sz(1)*sz(2),1]);
+            A_corrct = A_re./trend;
+            A = reshape(A_corrct,sz);
                 
         end
         
@@ -930,7 +937,7 @@ classdef movieData
         end
 
         
-        function SeedBasedCorr_GPU(A,spacialFactor,total_seeds,GPU_flag)
+        function SeedBasedCorr_GPU(A,spatialFactor,total_seeds,GPU_flag)
         % Generate seed-based correlation maps based on seeds and filtered matrix
         % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
         % are not available, try to automatically generate seeds that evenly
@@ -939,7 +946,7 @@ classdef movieData
         %
         % Inputs:
         %   A                input matrix 
-        %   spacialFactor    factor previously used for downsampling
+        %   spatialFactor    factor previously used for downsampling
         %   total_seeds      number of seeds to be generated
         %   GPU_flag         whether run on GPU
         %
@@ -947,9 +954,9 @@ classdef movieData
         %   seed-based correlation maps
 
 
-            %downSampleRatio = 1/spacialFactor
-            if exist('spacialFactor','var')
-                downSampleRatio = 1/spacialFactor;
+            %downSampleRatio = 1/spatialFactor
+            if exist('spatialFactor','var')
+                downSampleRatio = 1/spatialFactor;
             else 
                 downSampleRatio = 0.5;
             end
@@ -1044,26 +1051,86 @@ classdef movieData
                     disp('Run seeds based correlation on GPU')
                 catch
                     corrM = corr(imgall',seedTrace');
+                    realSeeds = any(~isnan(corrM));
+                    corrM = corrM(:,realSeeds);
+                    roi = roi(realSeeds);
                     sz_3 = size(corrM,2);
-                    corrMatrix = reshape(corrM,sz(1), sz(2),sz_3);
+                    corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
                     disp('Run on GPU failed, run seeds based correlation on CPU')
                 end
             else
                 corrM = corr(imgall',seedTrace');
+                realSeeds = any(~isnan(corrM));
+                corrM = corrM(:,realSeeds);
+                roi = roi(realSeeds);
                 sz_3 = size(corrM,2);
-                corrMatrix = reshape(corrM,sz(1), sz(2),sz_3);
+                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
                 disp('Run seeds based correlation on CPU')
             end
-            save('Correlation_Matrix.mat','corrMatrix');
+            save('Correlation_Matrix.mat','corrMatrix');  
             
-            %Plot correlation map
+            if sflag == 1
+                movieData.plotCorrM(roi, corrMatrix)
+            elseif sflag == 2
+                movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', downSampleRatio)
+            end
+            
+        end
+        
+        function plotCorrM(roi, corrMatrix, varargin)
+        
+        % Plot correlation maps based on input seeds & correlation matrix
+        % If you have manually defined seeds in .zip file, please do follow:
+        % 1. Get ROI_all from your .zip roi file using ROI class
+        % 2. [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);
+        % 3. plotCorrM(roi, corrMatrix, 'roipolygon'', roiPolygon value,
+        % 'downsample', downsample ratio)
+        %
+        % Inputs:
+        %       roi           seeds indices 
+        %       corrMatrix    correlation matrix
+        %       downsample    downsample ratio of the original matrix
+        %       roipolygon    polygon region of the input seeds
+        %
+        % Outputs:
+        %      correlation maps based on input information
+           
+            disp('If you have manually defined seeds, please do follow:')
+            disp('1. Get ROI_all from your .zip roi file using ROI class')
+            disp('2. [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);')
+            disp('plotCorrM(roi, corrMatrix, ''roipolygon'', roiPolygon value, ''downsample'', downsample ratio)')
+            
+            sflag = 1;
+            if nargin < 2
+               error ('You must supply at least rois and correlation matrix');
+            end
+            if (rem(length(varargin),2)==1)
+                error('Optional parameters should always go by pairs');
+            elseif nargin > 3
+                sflag = 2;
+                for i=1:2:(length(varargin)-1)
+                    if ~ischar (varargin{i})
+                     error (['Unknown type of optional parameter name (parameter' ...
+                     ' names must be strings).']);
+                    end
+                    switch lower (varargin{i})
+                        case 'roipolygon'
+                            roiPolygon = varargin{i+1};
+                        case 'downsample'
+                            downSampleRatio = varargin{i+1};
+                    end
+                end
+            end
+                     
+                          
+           %Plot correlation map
             for r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
                 imagesc(cur_img); colormap jet; colorbar; axis image
                 caxis([-0.5, 1]); title(['roi:', num2str(r)]);
-                hold on
+                hold on                   
 
                 %Label seed position
                 if sflag == 2
@@ -1078,16 +1145,14 @@ classdef movieData
                     maskId = roi(r,:);
                     x1 = ceil(maskId(1)/size(cur_img,1));
                     y1 = maskId(1) - floor(maskId(1)/size(cur_img,1))*size(cur_img,1);
-                    roiPolygon(:,1) = [x1,x1,x1+2,x1+2];
-                    roiPolygon(:,2) = [y1,y1+2,y1+2,y1];
-                    fill(roiPolygon(:,1),roiPolygon(:,2), 'y')
+                    fill([x1,x1,x1+2,x1+2],[y1,y1+2,y1+2,y1], 'y')
                 end
 
                 %Save the plot
                 num_str = num2str(1000 + r);
                 num_str(1) = '0';
                 saveas(h, ['roi', num_str, '.png'])     
-            end
+            end 
             
         end
       
@@ -1191,7 +1256,7 @@ classdef movieData
         %       Save the computed ICA results
         
             %further downsampled the movie
-            disp('For ICA analysis, further downsample the data by the factor of 2(spacial+temporal)')
+            disp('for ICA analysis, further downsample the data by the factor of 2(spatial+temporal)')
             A_DS = Integration.downSampleMovie(A,2,2);
             %Restrict the area to only roi region
             [dim1_lower,dim1_upper,dim2_lower,dim2_upper] = movieData.getROIBoundsFromImage(A_DS(:,:,1));
@@ -1216,6 +1281,31 @@ classdef movieData
             corr_map = corr(icasig',A_re');     
             
             disp('ICA processing is done')
+        end
+        
+        
+        function all_features = getFeatures2D(A)
+        %Get 2D connected components features from binary matrix A
+        %   Inputs:
+        %       A          Input binary matrix
+        %   Outputs:
+        %       all_feature      Features from regionprops defined in the function
+
+            sz = size(A);
+            all_features = [];
+            parfor i = 1:sz(3)
+                cur_img = A(:,:,i);
+                cur_CC =  bwconncomp(cur_img);
+                cur_STATS = regionprops(cur_CC,'Eccentricity','Orientation','Centroid'...
+                    ,'Extrema','FilledArea','MajorAxisLength','MinorAxisLength'); 
+                for j = 1:length(cur_STATS)
+                    curr_features = [cur_STATS(j).Centroid,cur_STATS(j).Orientation...
+                        ,cur_STATS(j).Eccentricity, cur_STATS(j).Extrema(:)'...
+                        ,cur_STATS(j).FilledArea, cur_STATS(j).MajorAxisLength...
+                        ,cur_STATS(j).MinorAxisLength];
+                    all_features = [all_features; curr_features];
+                end
+            end
         end
   
     end
