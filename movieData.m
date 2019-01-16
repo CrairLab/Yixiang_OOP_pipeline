@@ -58,6 +58,7 @@ classdef movieData
 %R17 01/08/19 Add ICA analysis function getICA 
 %R18 01/15/19 modify several functino to allow better parellel computing.
 %Add new function plotCorrM 
+%r18 01/15/19 modify simpleBWThresholding
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -656,10 +657,16 @@ classdef movieData
             if length(sz) == 2
                 sz(3) = 1;
             end
-            
-            singleThresholding = @(A, thresh) reshape(zscore(A(:)),size(A))>thresh;
-            parfor k = 1:sz(3)               
-                A(:,:,k) = singleThresholding(A(:,:,k),thresh);                            
+
+            %singleThresholding = @(A, thresh) reshape(zscore(A(:)),size(A))>thresh;
+            parfor k = 1:sz(3)
+                curImg = A(:,:,k);
+                curImg(~isnan(curImg)) = zscore(curImg(~isnan(curImg)));
+                tmp = curImg > thresh;
+                tmp(tmp == 0) = nan;
+                A(:,:,k) = tmp;
+                
+                %A(:,:,k) = singleThresholding(A(:,:,k),thresh);                            
             end
 
         end
@@ -686,7 +693,7 @@ classdef movieData
             postiveRatio = zeros(1,sz(3));
 
             %Acuqire current matrix
-            bgMatrix = A(:,:,:);
+            bgMatrix = A;
             bgMatrix(bgMatrix == 0) = nan;
             bgMean = nanmean(bgMatrix(:));
             bgStd = nanstd(bgMatrix(:));
