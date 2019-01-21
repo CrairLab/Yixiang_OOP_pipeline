@@ -58,7 +58,8 @@ classdef movieData
 %R17 01/08/19 Add ICA analysis function getICA 
 %R18 01/15/19 modify several functino to allow better parellel computing.
 %Add new function plotCorrM 
-%r18 01/15/19 modify simpleBWThresholding
+%R18 01/15/19 modify simpleBWThresholding
+%R19 01/20/19 added movementAssess function. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -508,14 +509,14 @@ classdef movieData
 
             switch nargin
                 case 1
-                    disp(['Spaceil Factor: 2' ])
+                    disp(['Spatial Factor: 2' ])
                     outputA = movieData.spatialDown(A,2);                    
                 case 2
                     disp('Only do spatial downsampling here!')
-                    disp(['Spaceil Factor:' num2str(s)])
+                    disp(['Spatial Factor:' num2str(s)])
                     outputA = movieData.spatialDown(A,s);
                 case 3
-                    disp(['Spaceil Factor:' num2str(s)])
+                    disp(['Spatial Factor:' num2str(s)])
                     disp(['Temporal Factor:' num2str(t)])
                     outputA = movieData.temporalDown(A,t);
                     outputA = movieData.spatialDown(outputA,s);
@@ -1278,7 +1279,7 @@ classdef movieData
                 A_re_zv(isnan(A_re_zv)) = 0;
                 lastEig = max(round(sz(1)*sz(2)/800),50);
                 tic;
-                [icasig, M, W] = fastica(A_re_zv ,'lastEig', lastEig, 'numOfIC', 50);
+                [icasig, M, W] = fastica(A_re_zv , 'verbose','off','lastEig', lastEig, 'numOfIC', 50);
                 toc;
                 save('ICA_results.mat','icasig','M','W')
             else
@@ -1314,6 +1315,63 @@ classdef movieData
                     all_features = [all_features; curr_features];
                 end
             end
+        end
+                
+             
+        function [iniDimFlag,A_filtered] = movementAssess(A,downSampleRatio)
+        %Assess frame movement and get rid of frames that move too much
+        %If mean frame differences is still very large after filtering out 30% of
+        %original frames, increase the initial dimension by 1 when doing svd
+        %
+        %Inputs:
+        %   A                   3D matrix
+        %   downSampleRatio     For further downsampling the matrix
+        %
+        %Outputs:
+        %   iniDimFlag          Flag whether to increase intial dimention to be
+        %                       preseverd in svd
+        %   A_filtered          Filtered matrix
+        %
+
+            %Assum the input movie size is 540*640
+            if nargin == 1
+                downSampleRatio = 10;
+            end
+
+            %Further downsample movie
+            A_DS = movieData.downSampleMovie(A,downSampleRatio);
+            sz = size(A_DS);
+
+            %Get black-white movie only preserve dark part of the movie
+            A_re = reshape(A_DS,[sz(1)*sz(2) sz(3)]);
+            A_mean = mean(A_re,2);
+            A_BW = A_DS < median(A_DS(:));
+            A_meanBW = A_mean < median(A_DS(:));
+            A_reBW = reshape(A_BW,[sz(1)*sz(2) sz(3)]);
+            A_diff = A_reBW - repmat(A_meanBW,[1 sz(3)]);
+            movIdx = sum(abs(A_diff),1);
+
+            %If a frame is 1.5% different against the mean frame, consider get rid of it
+            threshold = sz(1)*sz(2)*0.015;
+            movIdx_saved = movIdx < threshold;
+            saveRatio = sum(movIdx_saved)/sz(3);
+
+            %Save at least 70% of the original frame
+            while saveRatio < 0.7
+                threshold = threshold * 1.05;
+                movIdx_saved = movIdx < threshold;
+                saveRatio = sum(movIdx_saved)/sz(3);
+            end
+
+            A_filtered = A(:,:,movIdx_saved);
+            if mean(movIdx(movIdx_saved))>sz(1)*sz(2)*0.01
+                disp('There is still significant movement after filtering frames, should get rid of some PCs')
+                iniDimFlag = 1;
+            else
+                iniDimFlag = 0;
+            end
+            disp(['Saved frames ratio = ' num2str(saveRatio)]);
+
         end
   
     end

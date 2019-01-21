@@ -61,6 +61,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R14 01/04/18 Improved param passing 
 %Compatiable with audPipe R8 or higher!
 %R14 01/08/18 Added ICA analysis
+%R15 01/20/18 Added movement assessment. Only Compatible with movieData R19+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -187,6 +188,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     end
                     A_corrct = movieData.movieRigReg(A_fixed,A_corrct);
                 end
+                
+                %Assess movement, get rid of frames with large motion
+                [iniDimFlag,A_corrct] = movieData.movementAssess(A_corrct);
 
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
@@ -231,6 +235,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 catch
                     iniDim = 1; param.iniDim = iniDim;
                 end
+                iniDim = iniDim + iniDimFlag;
                 [de_A,U,S,V] = Integration.roiSVD(A_dFoF, iniDim);
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
