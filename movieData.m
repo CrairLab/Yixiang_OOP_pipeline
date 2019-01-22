@@ -60,6 +60,8 @@ classdef movieData
 %Add new function plotCorrM 
 %R18 01/15/19 modify simpleBWThresholding
 %R19 01/20/19 added movementAssess function. 
+%R19 -1/20/19 modify the roisvd function. Improve spatialDown function 
+%only compatible with ROI R5+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -542,8 +544,7 @@ classdef movieData
             newsz2 = mod(-sz(2),s)+sz(2);
             IdxEnd1 = ceil(sz(1)/s)*s;
             IdxEnd2 = ceil(sz(2)/s)*s;
-            A_newk = nan(newsz1,newsz2);
-            A_newk_avg = nan(newsz1/s,newsz2/s,s^2);
+            
             %downA = nan(newsz1/s,newsz2/s,sz(3));
             downA = [];
             
@@ -551,8 +552,10 @@ classdef movieData
                 sz(3) = 1;
             end
 
-            for k = 1:sz(3)    
+            parfor k = 1:sz(3)  
+                A_newk_avg = nan(newsz1/s,newsz2/s,s^2);
                 A_k = A(:,:,k);
+                A_newk = nan(newsz1,newsz2);
                 A_newk(1:sz(1),1:sz(2)) = A_k;
                 count = 0;
                 for i = 1:s
@@ -563,8 +566,8 @@ classdef movieData
                         A_newk_avg(:,:,count) = A_newk(Idx1,Idx2);
                     end
                 end
-                A_newk_avg = nanmean(A_newk_avg,3);
-                downA(:,:,k) = A_newk_avg;
+                downA_k = nanmean(A_newk_avg,3);
+                downA(:,:,k) = downA_k;
             end
 
         end
@@ -828,7 +831,7 @@ classdef movieData
         
         
         
-        function [A,U,S,V] = roiSVD(A, iniDim)
+        function [A,U,S,V,iniDim] = roiSVD(A, iniDim)
 
         %    This function automatically identify the minimum rectangle containing roi
         %    and then do SVD denosing to only the roi part of the original matrix. It 
@@ -864,9 +867,9 @@ classdef movieData
             tic; [U,S,V] = svds(A_roi',psv_dim); toc;
             
             %Reconstruct the roi pairt using the the 4th to the last component
-            A_roi_rcs = U(:,iniDim:end)*S(iniDim:end,iniDim:end)*V(:,iniDim:end)';
+            A_roi_rcs = V(:,iniDim:end)*S(iniDim:end,iniDim:end)*U(:,iniDim:end)';
             %A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
-            A_roi_rcs = reshape(A_roi_rcs',[sz(1),sz(2),sz(3)]);
+            A_roi_rcs = reshape(A_roi_rcs,[sz(1),sz(2),sz(3)]);
 
             %Recover the roi to the original image size
             A(dim1_lower:dim1_upper,dim2_lower:dim2_upper,:) = A_roi_rcs;
@@ -988,7 +991,7 @@ classdef movieData
             if isempty(ROI_all)
                 disp('Seeds not provided (no manually defined seeds!)')
                 disp('Generating seeds evenly covering current rois...')
-                roi = ROI.genSeedingROIs(total_seeds,downSampleRatio);
+                roi = ROI.genSeedingROIs(total_seeds,downSampleRatio,sz(1:2));
                 sflag = 1; % for automatically generated seeds
             else
 
@@ -1318,7 +1321,7 @@ classdef movieData
         end
                 
              
-        function [iniDimFlag,A_filtered] = movementAssess(A,downSampleRatio)
+        function [iniDimFlag,A_filtered,movIdx_saved,saveRatio] = movementAssess(A,downSampleRatio)
         %Assess frame movement and get rid of frames that move too much
         %If mean frame differences is still very large after filtering out 30% of
         %original frames, increase the initial dimension by 1 when doing svd

@@ -8,12 +8,15 @@ function byPassPreProcessing(id,param)
 %with Integration class R11 or higher
 %R4 10/24/18 Feed in param to be compatiable with R15 movieData class,
 %which allow GPU computing when doing seed-based correlation maps
-
+%R5 01/21/19 Changed function structure, allow reconstruction of matrix
+%based on previously saved SVD.mat file and rechoose initial dimension when
+%doing reconstruction
 
 %Inputs:
 %id       determine which function to run
 %(id == 1, renewCC; id == 2, pseudo-clolor movie; id == 3 seed-based corr)
 %
+
     if ~exist('files.txt','file')
         Integration.fileDetector()
     end
@@ -25,6 +28,7 @@ function byPassPreProcessing(id,param)
         param.spacialFactor = 2;
         param.total_seeds = 500;
         param.GPU_flag = 0;
+        param.rechooseIniDim = 1;
     end
 
 
@@ -33,36 +37,53 @@ function byPassPreProcessing(id,param)
         filename = cur_Names.filename;
         currentFolder = pwd;
         outputFolder = fullfile(currentFolder,cur_Names.outputFolder);
-        checkname = [filename(1:length(filename)-4) '_filtered.mat'];               
+        %If param.rechooseIniDim == 0 don't change the initial dimension
+        if param.rechooseIniDim == 0
+            checkname = [filename(1:length(filename)-4) '_filtered.mat'];               
+                if exist(fullfile(outputFolder,checkname),'file')
+                    %Check whether pre-processing has been done before
+                    disp('Filtered matrix detected, loading .mat file...')
+                    curLoad = load(fullfile(outputFolder,checkname));
+                    if id == 3
+                        A_all = cat(3, A_all, curLoad.Ga_TH_A);
+                    else
+                        chooseAction(id,Ga_TH_A,outputFolder,filename)
+                    end
+                    disp('')
+                else
+                    disp('')
+                    disp('No filetered matrix detected!!!')
+                    disp('')
+                end
+        else
+            checkname = [filename(1:length(filename)-4) '_SVD.mat'];
             if exist(fullfile(outputFolder,checkname),'file')
                 %Check whether pre-processing has been done before
-                disp('Filtered matrix detected, loading .mat file...')
-                load(fullfile(outputFolder,checkname));
-                
-                switch id
-                    case 1
-                        %Chop the matrix to contain only roi
-                        ppA_roi = movieData.focusOnroi(Ga_TH_A);
-                        %Renew connected components
-                        Integration.renewCC(ppA_roi,outputFolder,filename)
-                        disp(['Preprocessing done: ' filename]);
-                    case 2
-                        %Chop the matrix to contain only roi
-                         ppA_roi = movieData.focusOnroi(Ga_TH_A);
-                        %make pseudo color movie
-                        movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
-                        disp(['Preprocessing done: ' filename]);
-                    case 3
-                        %prepare for seed-based correlation analysis
-                        A_all = cat(3, A_all, Ga_TH_A);
-                end             
-                
-                disp('')
+                disp('SVD matrix detected, loading .mat file...')
+                curLoad = load(fullfile(outputFolder,checkname),'U','S','V');
+                U = curLoad.U;
+                S = curLoad.S;
+                V = curLoad.V;
+                %Rechoose initial dimension
+                iniDim = param.rechooseIniDim;
+                sz = size(V);
+                V = reshape(V, [sz(1)*sz(2) sz(3)]);
+                A_rcs = V(:,iniDim:end)*S(iniDim:end,iniDim:end)*U(:,iniDim:end)';
+                A_rcs = reshape(A_rcs,[sz(1),sz(2),size(A_rcs,2)]);
+                A_z = zscore(A_rcs,1,3);
+                disp('Z-scored reconstructed matrix')
+                %Gaussian smoothing
+                Ga_TH_A = Integration.GauSmoo(A_z,2); %set sigma = 2
+                disp('Gaussian smoothing is done');
+                disp(' ')
+                %prepare for seed-based correlation analysis
+                A_all = cat(3, A_all, Ga_TH_A);
             else
                 disp('')
-                disp('No filetered matrix detected!!!')
+                disp('No svd matrix detected!!!')
                 disp('')
             end
+        end
 
     end
     
@@ -87,4 +108,23 @@ function filelist = fileDetector()
             filelist{n,1} = temp_info(i,1).name;
         end
     end
+end
+
+%%
+function chooseAction(id,A_input,outputFolder,filename)
+%Choose different actions specified by id number
+    switch id
+            case 1
+                %Chop the matrix to contain only roi
+                ppA_roi = movieData.focusOnroi(A_input);
+                %Renew connected components
+                Integration.renewCC(ppA_roi,outputFolder,filename)
+                disp(['Preprocessing done: ' filename]);
+            case 2
+                %Chop the matrix to contain only roi
+                ppA_roi = movieData.focusOnroi(A_input);
+                %make pseudo color movie
+                movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
+                disp(['Preprocessing done: ' filename]);
+    end   
 end

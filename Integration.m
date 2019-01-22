@@ -190,8 +190,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 end
                 
                 %Assess movement, get rid of frames with large motion
-                [iniDimFlag,A_corrct] = movieData.movementAssess(A_corrct);
-
+                [iniDimFlag,A_corrct,movIdx_saved,saveRatio] = movieData.movementAssess(A_corrct);
+                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
+                save(fullfile(outputFolder,checkname),'movIdx_saved','saveRatio','iniDimFlag');
+                
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
                 %clear A_corrct
@@ -235,13 +237,13 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 catch
                     iniDim = 1; param.iniDim = iniDim;
                 end
-                iniDim = iniDim + iniDimFlag;
-                [de_A,U,S,V] = Integration.roiSVD(A_dFoF, iniDim);
+                %iniDim = iniDim + iniDimFlag;
+                [de_A,U,S,V,iniDim] = Integration.roiSVD(A_dFoF, iniDim);
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
                 de_A(de_A == 0) = nan;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
-                save(fullfile(outputFolder,checkname),'U','S','V','param');
+                save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
                 disp('SVD denosing is done')
                 disp('')
                 clear A_DS A_dFoF

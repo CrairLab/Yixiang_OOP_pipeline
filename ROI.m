@@ -21,6 +21,8 @@ classdef ROI
 %total_seeds from the very beginning in function genSeedingROIs
 %R4 10/15/18 Improve the ApplyMask function
 %R4 01/18/19 Modify the ROIMask function
+%R5 01/21/19 Modify the genSeedingROIs function. Only compatible with
+%movieData R19+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -165,7 +167,7 @@ classdef ROI
         
        
        
-       function Seeds = genSeedingROIs(total_seeds,downSampleRatio)
+       function Seeds = genSeedingROIs(total_seeds,downSampleRatio,sz)
 
         % Generate rois that serve as seeds for seed-based correlation maps
         %
@@ -179,8 +181,10 @@ classdef ROI
             if nargin == 0        
                 total_seeds = 850;
                 downSampleRatio = 0.5;
+                sz = [270 320];
             elseif nargin == 1
                 downSampleRatio = 0.5;
+                sz = [270 320];
             end
 
             %Detect if there is pre-defined sub-region for seeds generation
@@ -194,7 +198,19 @@ classdef ROI
             end
             
             [~, Mask] = ROI.ROIMask(ROIRegime.ROIData);
+            szM = size(Mask);
+            
+            %It's important here to first do spatial downsampling than
+            %focus on non-zero region of Mask (consistent with order in the
+            %Integration pre-processing function
+       
             Mask = movieData.spatialDown(Mask,1/downSampleRatio);
+            if ~(szM(1)*szM(2)*downSampleRatio^2 == sz(1)*sz(2))
+                disp('The input matrxi size (first 2d) = '); sz
+                disp('The identified Mask size = '); szM
+                Mask = Mask(any(Mask,2),any(Mask,1));
+            end            
+            disp('The new Mask size = '); size(Mask)
             Mask = (Mask == 1);
             %Mask = imresize(Mask, downSampleRatio, 'bilinear');
             
