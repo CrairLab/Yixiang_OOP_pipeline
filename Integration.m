@@ -62,6 +62,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %Compatiable with audPipe R8 or higher!
 %R14 01/08/18 Added ICA analysis
 %R15 01/20/18 Added movement assessment. Only Compatible with movieData R19+
+%R16 01/24/18 Added readSingleMatrix function. Only compatible with
+%byPassProcessing R6+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -851,6 +853,59 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
                 save(fullfile(outputFolder,checkname),'BW_ppA','-v7.3');
                 clear BW_ppA
+        end
+        
+        
+        
+        function [curLoad,outputFolder,filename] = readInSingleMatrix(tag,specificF)
+        %Read in variables from a .mat file and save them as a struct named
+        %curLoad. Read in *_filter.mat files in default.
+        %
+        %Inputs:
+        %   tag          tag specified what kind of .mat files to read
+        %   specificF    number specify which .mat file to read
+        %
+        %Outputs:
+        %   curLoad      a struct to store variables read in from .mat
+        %   outputFolder     detected outputFolder name
+        %   filename     detected filename
+        
+            disp('Make sure the tag variable can identify .mat files to be read in')
+            if ~exist('tag','var')
+                tag = 'filtered';
+            end
+
+            if ~exist('specificF','var')
+                %Did not specify which file to read
+               warning('Please specify which file to read!')
+            end
+
+            f = specificF;
+            cur_Names = Names(f,0);
+            filename = cur_Names.filename;
+            currentFolder = pwd;
+            outputFolder = fullfile(currentFolder,cur_Names.outputFolder);
+            checkname = [filename(1:length(filename)-4) '_' tag '.mat'];               
+            if exist(fullfile(outputFolder,checkname),'file')
+                %Check whether pre-processing has been done before
+                disp([tag 'matrix detected, loading .mat file...'])
+                curLoad = load(fullfile(outputFolder,checkname));
+                disp('')
+            else
+                disp('')
+                disp([tag ' No matrix detected!!!'])
+                disp('Try loading matrix from pwd')
+                outputFolder = fullfile(currentFolder);
+                if exist(fullfile(outputFolder,checkname),'file')
+                    %Check whether pre-processing has been done before
+                    disp([tag 'matrix detected, loading .mat file...'])
+                    curLoad = load(fullfile(outputFolder,checkname));
+                    disp('')
+                else
+                    disp([tag ' No matrix detected!!!'])
+                end
+                disp('')
+            end
         end
         
     end

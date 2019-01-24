@@ -60,8 +60,10 @@ classdef movieData
 %Add new function plotCorrM 
 %R18 01/15/19 modify simpleBWThresholding
 %R19 01/20/19 added movementAssess function. 
-%R19 -1/20/19 modify the roisvd function. Improve spatialDown function 
+%R19 01/20/19 modify the roisvd function. Improve spatialDown function 
 %only compatible with ROI R5+
+%R20 01/24/19 added functions to do k-means clustering and related
+%processing.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -948,7 +950,7 @@ classdef movieData
         end
 
         
-        function SeedBasedCorr_GPU(A,spatialFactor,total_seeds,GPU_flag)
+        function corrMatrix = SeedBasedCorr_GPU(A,spatialFactor,total_seeds,GPU_flag,plot_flag)
         % Generate seed-based correlation maps based on seeds and filtered matrix
         % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
         % are not available, try to automatically generate seeds that evenly
@@ -960,6 +962,7 @@ classdef movieData
         %   spatialFactor    factor previously used for downsampling
         %   total_seeds      number of seeds to be generated
         %   GPU_flag         whether run on GPU
+        %   plot_flag        whether plot the correlation maps or not
         %
         % Outpus:
         %   seed-based correlation maps
@@ -978,6 +981,10 @@ classdef movieData
 
             if ~exist('GPU_flag', 'var')
                 GPU_flag = 0;
+            end
+            
+            if ~exist('plot_flag','var')
+                plot_flag = 1;
             end
 
             disp(['Note: Defalut downsampled ratio == ' num2str(downSampleRatio)]);
@@ -1080,10 +1087,12 @@ classdef movieData
             end
             save('Correlation_Matrix.mat','corrMatrix');  
             
-            if sflag == 1
-                movieData.plotCorrM(roi, corrMatrix)
-            elseif sflag == 2
-                movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', downSampleRatio)
+            if plot_flag
+                if sflag == 1
+                    movieData.plotCorrM(roi, corrMatrix)
+                elseif sflag == 2
+                    movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', downSampleRatio)
+                end
             end
             
         end
@@ -1308,11 +1317,13 @@ classdef movieData
             parfor i = 1:sz(3)
                 cur_img = A(:,:,i);
                 cur_CC =  bwconncomp(cur_img);
-                cur_STATS = regionprops(cur_CC,'Eccentricity','Orientation','Centroid'...
-                    ,'Extrema','FilledArea','MajorAxisLength','MinorAxisLength'); 
+                cur_STATS = regionprops(cur_CC,'Centroid','Extrema','Eccentricity','Orientation'...
+                    ,'FilledArea','MajorAxisLength','MinorAxisLength'); 
                 for j = 1:length(cur_STATS)
-                    curr_features = [cur_STATS(j).Centroid,cur_STATS(j).Orientation...
-                        ,cur_STATS(j).Eccentricity, cur_STATS(j).Extrema(:)'...
+                    curr_features = [cur_STATS(j).Centroid...
+                        ,cur_STATS(j).Extrema(:)'...
+                        ,cur_STATS(j).Orientation...
+                        ,cur_STATS(j).Eccentricity ...
                         ,cur_STATS(j).FilledArea, cur_STATS(j).MajorAxisLength...
                         ,cur_STATS(j).MinorAxisLength];
                     all_features = [all_features; curr_features];
@@ -1376,6 +1387,106 @@ classdef movieData
             disp(['Saved frames ratio = ' num2str(saveRatio)]);
 
         end
+        
+        
+        
+        function corrM = corrMapThresholding(corrM,threshpct)
+        %Thresholding correlation matrix, preserve top 20% correlated region in
+        %each frame in default
+        %
+        %Inputs:
+        %   corrM          correlation matrix
+        %   threshpct      thresholding percentile
+        %
+        %Outputs:
+        %   corrM          threholded matrix
+        %
+
+        if nargin == 1
+            threshpct = 80;
+        end
+
+            parfor i = 1:size(corrM,3)
+                %normalizing correlation based on distance between pixels and seeds
+                %nomarlized correlation = correlation * exp((xi -x_seed)^2/2*delta)
+                %in which delta = max(square(distances btw pixels)) 
+                currMap = corrM(:,:,i);
+
+                [seed_x, seed_y] = ind2sub(size(currMap),find(currMap == max(currMap(:))));
+                [all_x, all_y] = ind2sub(size(currMap),1:length(currMap(:)));
+                dis_sq = (all_x - seed_x).^2 + (all_y - seed_y).^2;
+                dis_sq = reshape(dis_sq, size(currMap));
+                delta_sq = max(dis_sq);
+                e_term = exp(dis_sq./(2*delta_sq));
+                nmMap = currMap.*e_term;
+
+                %Preserve top 20% correlated region in default
+                tholdedM = nmMap>prctile(nmMap(:),threshpct);
+                corrM(:,:,i) = tholdedM;
+                %imagesc([currMap;nmMap;tholdedM]); colormap jet; colorbar; axis image
+                %caxis([-0.5, 1]); 
+            end
+        end
+        
+        function [mean_CCprops,allCCprops] = getAllCCfromCorrM(corrM)
+        %Crop and reshape input correlation matrix and get all connectd components
+        %properties from each frame of the input matrix
+        %
+        %Inputs:
+        %   corrM          correlation matrix
+        %
+        %Outputs:
+        %   allCCprops     all connected components properties
+        %
+
+            sz = size(corrM);
+            %Get rid of maps that are all NaN (due to imperfect seeds sampling)
+            corrM_re = reshape(corrM,[sz(1)*sz(2),sz(3)]);
+            corrM_re = corrM_re(:,any(~isnan(corrM_re)));
+            corrM = reshape(corrM_re,[sz(1),sz(2),size(corrM_re,2)]);
+            %Confine the analysis only in non-nan (roi) region
+            corrM = movieData.focusOnroi(corrM);
+            %Thresholding the matrix 
+            thCorrM = movieData.corrMapThresholding(corrM,90);
+            CCfiltered_thCorrrM = Integration.filterCC_byFrame(thCorrM);
+            %CCfiltered_thCorrrM = thCorrM;
+            allCCprops = movieData.getFeatures2D(CCfiltered_thCorrrM);
+            mean_CCprops = mean(allCCprops);
+            allCCprops = allCCprops - mean_CCprops;
+        end
+        
+        
+        
+        function [trainSet,testSet] = generateBatch(A)
+        %Generate training set and test set from permutated input matrix A
+        %A can be 2D or 3D matrix
+        %Inputs:
+        %   A        2D or 3D matrix
+        %
+        %Outputs:
+        %   trainSet    Subset of input A (75% of the data)
+        %   testSet     Subset of input A (25% of the data)
+
+            if length(size(A)) == 3
+                n = size(A,3);
+                %Permutation
+                Idx = randperm(n);
+                %training set contains 75% of input data
+                trainSize = round(n/4*3);
+                permA = A(:,:,Idx);
+                trainSet = permA(:,:,1:trainSize);
+                testSet = permA(:,:,trainSize+1:end);
+            elseif length(size(A)) == 2
+                n = size(A,2);
+                Idx = randperm(n);
+                trainSize = round(n/4*3);
+                permA = A(:,Idx);
+                trainSet = permA(:,1:trainSize);
+                testSet = permA(:,trainSize+1:end);
+            end
+
+        end
+
   
     end
            

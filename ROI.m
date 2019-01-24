@@ -24,6 +24,7 @@ classdef ROI
 %R5 01/21/19 Modify the genSeedingROIs function. Only compatible with
 %movieData R19+
 %R5 01/23/19 Improve ROIMask function
+%R5 01/24/19 Improve ROIMask function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -122,6 +123,8 @@ classdef ROI
            end
            
            if ~isempty(ROIData)
+               %Default size of the image
+               sz = [540,640];
                Mask = zeros(sz);
                for i = 1:length(ROIData)
                    try
