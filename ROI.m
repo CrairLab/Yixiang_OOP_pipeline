@@ -23,6 +23,7 @@ classdef ROI
 %R4 01/18/19 Modify the ROIMask function
 %R5 01/21/19 Modify the genSeedingROIs function. Only compatible with
 %movieData R19+
+%R5 01/23/19 Improve ROIMask function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -119,17 +120,24 @@ classdef ROI
                sz(1) = 540;
                sz(2) = 640;
            end
-           Mask = zeros(sz);
-           for i = 1:length(ROIData)
-               try
-                   ThisROIStruct = ROIData{i};
-               catch
-                   ThisROIStruct = ROIData;
+           
+           if ~isempty(ROIData)
+               Mask = zeros(sz);
+               for i = 1:length(ROIData)
+                   try
+                       ThisROIStruct = ROIData{i};
+                   catch
+                       ThisROIStruct = ROIData;
+                   end
+                   Coordinates = ThisROIStruct.mnCoordinates;
+                   Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),sz(1),sz(2));                            
                end
-               Coordinates = ThisROIStruct.mnCoordinates;
-               Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),sz(1),sz(2));                            
+           else
+               Mask = ones(sz);
            end
            [subs(:,1),subs(:,2)] = ind2sub(sz,find(Mask));
+           
+           
        end
        
        function [roi,roiPolygon] = generateROIArray(ROI_all,sz)
@@ -197,7 +205,7 @@ classdef ROI
                 disp('Generate seeds covering the whole roi...')
             end
             
-            [~, Mask] = ROI.ROIMask(ROIRegime.ROIData);
+            [~, Mask] = ROI.ROIMask(ROIRegime.ROIData,sz);
             szM = size(Mask);
             
             %It's important here to first do spatial downsampling than
@@ -214,10 +222,10 @@ classdef ROI
             Mask = (Mask == 1);
             %Mask = imresize(Mask, downSampleRatio, 'bilinear');
             
-            if isempty(ROIRegime.ROIData)
+            %if isempty(ROIRegime.ROIData)
                 %default image size 540*640
-                Mask = zeros(ceil(540*downSampleRatio),ceil(640*downSampleRatio)) + 1;
-            end
+            %    Mask = zeros(ceil(540*downSampleRatio),ceil(640*downSampleRatio)) + 1;
+            %end
             [m,n] = size(Mask);
             %Define a minimum distance between seeds
             d = ceil(sqrt(m*n./100^2));
