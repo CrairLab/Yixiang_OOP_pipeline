@@ -83,8 +83,18 @@ function byPassPreProcessing(id,param)
                     %prepare for seed-based correlation analysis
                     A_all = cat(3, A_all, Ga_TH_A);
                 end
-                movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag);
             end
+            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag);
+        case 4
+        %Do K-means analysis 
+            A_all = [];
+            for f = 1:nmov
+                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                    A_all = cat(3, A_all, curLoad.Ga_TH_A);
+            end
+            [A_all,corrMatrix,~,~] = connectivityKmeans(A_all)
+            save('AllMatrix.mat','A_all','-v7.3')
+            save('CorrelationMatrix_all.mat','corrMatrix','-v7.3');
     end
 
     disp(['Processing done at:' pwd]);
