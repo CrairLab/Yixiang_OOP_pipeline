@@ -25,6 +25,9 @@ classdef ROI
 %movieData R19+
 %R5 01/23/19 Improve ROIMask function
 %R5 01/24/19 Improve ROIMask function
+%R6 01/26/19 Add function makeSizeConform. Modify several functions to allow
+%automatic size conformation (mask size and matrix size). Only compatible
+%with movieData R21+ and Integration R 17+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     
@@ -88,12 +91,17 @@ classdef ROI
                     A2 = Masks3D.* A;
                  catch
                     disp('Mask size does not conform with movie size');
-                    disp('Try to crop movie and mask');
-                    [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
-                    Mask = movieData.focusOnroi(Mask);
-                    Masks3D = repmat(Mask,[1 1 sz(3)]);
-                    A = movieData.focusOnroi(A);
-                    A2 = Masks3D.* A;
+                    disp('Try to conform movie and mask');
+                    [~, Mask] = ROI.ROIMask(ROIData);
+                    [flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2)); 
+                    if flag
+                        Masks3D = repmat(Mask,[1 1 sz(3)]);                       
+                        A2 = Masks3D.* A;
+                        disp('Succeeded in complying the mask size extracted from roi file with matrix size!')
+                    else
+                        warning('Faied to comply the mask size extracted from roi file with matrix size!')
+                        A2 = A;
+                    end
                  end
              else
                  A2 = A;
@@ -124,8 +132,8 @@ classdef ROI
            
            if ~isempty(ROIData)
                %Default size of the image
-               sz = [540,640];
-               Mask = zeros(sz);
+               default_sz = [540,640];
+               Mask = zeros(default_sz);
                for i = 1:length(ROIData)
                    try
                        ThisROIStruct = ROIData{i};
@@ -133,7 +141,14 @@ classdef ROI
                        ThisROIStruct = ROIData;
                    end
                    Coordinates = ThisROIStruct.mnCoordinates;
-                   Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),sz(1),sz(2));                            
+                   Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),default_sz(1),default_sz(2));                            
+               end
+               %Try to conform mask size and matrix size
+               [flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2));
+               if ~flag
+                   Mask = ones(sz);
+                   disp('Dimensions do not agree. Current size is: '); sz
+                   disp('Make Mask = ones(sz);');
                end
            else
                Mask = ones(sz);
@@ -178,7 +193,7 @@ classdef ROI
         
        
        
-       function Seeds = genSeedingROIs(total_seeds,downSampleRatio,sz)
+       function Seeds = genSeedingROIs(total_seeds,sz)
 
         % Generate rois that serve as seeds for seed-based correlation maps
         %
@@ -191,10 +206,8 @@ classdef ROI
 
             if nargin == 0        
                 total_seeds = 850;
-                downSampleRatio = 0.5;
                 sz = [270 320];
             elseif nargin == 1
-                downSampleRatio = 0.5;
                 sz = [270 320];
             end
 
@@ -205,24 +218,23 @@ classdef ROI
             if isempty(ROIRegime.ROIData)
                 ROIRegime = ROI();
                 disp('Did not define sub-region for seeds sampling...')
-                disp('Generate seeds covering the whole roi...')
-            end
+             end
             
             [~, Mask] = ROI.ROIMask(ROIRegime.ROIData,sz);
-            szM = size(Mask);
+            %szM = size(Mask);
             
             %It's important here to first do spatial downsampling than
             %focus on non-zero region of Mask (consistent with order in the
             %Integration pre-processing function
        
-            Mask = movieData.spatialDown(Mask,1/downSampleRatio);
-            if ~(szM(1)*szM(2)*downSampleRatio^2 == sz(1)*sz(2))
-                disp('The input matrxi size (first 2d) = '); sz
-                disp('The identified Mask size = '); szM
-                Mask = Mask(any(Mask,2),any(Mask,1));
-            end            
-            disp('The new Mask size = '); size(Mask)
-            Mask = (Mask == 1);
+            %Mask = movieData.spatialDown(Mask,spatialFactor);
+            %if ~(szM(1)*szM(2)/spatialFactor^2 == sz(1)*sz(2))
+            %    disp('The input matrxi size (first 2d) = '); sz
+            %    disp('The identified Mask size = '); szM
+            %    Mask = Mask(any(Mask,2),any(Mask,1));
+            %end            
+            %disp('The new Mask size = '); size(Mask)
+            %Mask = (Mask == 1);
             %Mask = imresize(Mask, downSampleRatio, 'bilinear');
             
             %if isempty(ROIRegime.ROIData)
@@ -289,6 +301,78 @@ classdef ROI
             num_rois = floor(sum(Mask_rois(:)));
 
         end
+        
+        
+        function [flag,Mask] = makeSizeConform(Mask,sz)
+        %Estimate spatial factor being applied to the movie. The input Mask
+        %is generated based on 540*640 image. However size of matrix (sz)
+        %could change after downsampling and focusOnroi function. This
+        %function try to make the two sizes comply and return flag == 1 if
+        %succeed (0 if fail) as well as the new complied Mask
+        %
+        %Inputs:
+        %   Mask        Current mask generated from ROIData
+        %   sz          size of movie matrix
+        %
+        %Outputs:
+        %   flag        1 if succeed; 0 if fail
+        %   Mask        renewed Mask
+            flag = 0;
+            szM = size(Mask);
+            
+            %Check if Mask size and matrix size are already consistent
+            if sum(sz == szM) == 2
+                flag = 1;
+                return;
+            end
+            
+            %Estimate spatialFactor based on matrix size and mask size
+            if exist('parameter.mat','file')
+                load('parameter.mat')
+                spatialFactor = param.spacialFactor;
+                flag = 1;
+            else
+                Mask_f = movieData.focusOnroi(Mask);
+                szMf = size(Mask_f);
+                lwRatio = round(szMf./sz);
+                if lwRatio(1) == lwRatio(2)
+                    spatialFactor = lwRatio(1);
+                else
+                    warning('Length ratio and width ratio between Mask size and Matrix size')
+                    disp('Assuming spatialFactor = 2');
+                    spatialFactor = 2;
+                end
+            end
+            
+            %Try different order to change mask size to make it comply with
+            %matrix size
+            Mask_b = Mask;
+            Mask = movieData.focusOnroi(Mask);
+            Mask = movieData.spatialDown(Mask,spatialFactor);
+            disp('Try to conform different sizes. Doing focusOnroi first...')
+            szM = size(Mask);
+            if sum(sz == szM) ~= 2
+                Mask = Mask_b;
+                Mask = movieData.spatialDown(Mask,spatialFactor);
+                Mask = movieData.focusOnroi(Mask);
+                disp('Doing focusOnroi first failed. Doing spatialDown first instead...')
+                if sum(sz == szM) ~= 2
+                    warning('Failed to conform the matrix size with ROI mask size!')
+                    warning('Please checked the roi and the matrix size manually.')
+                    flag = 0;
+                else
+                    flag = 1;
+                end
+            else
+                flag = 1;
+            end
+            
+            %In spatialDown function, fractions can be induced
+            Mask = (Mask == 1);
+        
+        end
+        
+        
         
    end
        

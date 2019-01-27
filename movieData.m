@@ -64,6 +64,8 @@ classdef movieData
 %only compatible with ROI R5+
 %R20 01/24/19 added functions to do k-means clustering and related
 %processing.
+%R21 01/26/19 added function seedsCorrelation. Several minor improvements.
+%Only compatible with Integration R17+ and ROI R6+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -770,8 +772,7 @@ classdef movieData
         end
         
         function A = grossDFoverF(A)
-        %    Doing gross dFoverF calculation.
-        
+        %    Doing gross dFoverF calculation.        
             A_mean = nanmean(A,3);
             sz = size(A);
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
@@ -864,6 +865,7 @@ classdef movieData
             A_roi = reshape(A_roi,[sz(1)*sz(2),sz(3)]);
             A_roi(isnan(A_roi)) = 0;
             psv_dim = round(size(cur_img,1)*size(cur_img,2)/800); %empirically suffcient to have a good-quality reconstruction
+            psv_dim = max(psv_dim,120); %At least preserve first 120 dimensions
             disp(['Preserved dimensions = ' num2str(psv_dim)]);
             %tic; [U,S,V] = svds(A_roi,psv_dim); toc;
             tic; [U,S,V] = svds(A_roi',psv_dim); toc;
@@ -969,10 +971,8 @@ classdef movieData
 
 
             %downSampleRatio = 1/spatialFactor
-            if exist('spatialFactor','var')
-                downSampleRatio = 1/spatialFactor;
-            else 
-                downSampleRatio = 0.5;
+            if ~exist('spatialFactor','var')
+                spatialFactor = 2;
             end
 
             if ~exist('total_seeds','var')
@@ -987,7 +987,7 @@ classdef movieData
                 plot_flag = 1;
             end
 
-            disp(['Note: Defalut downsampled ratio == ' num2str(downSampleRatio)]);
+            disp(['Note: Defalut spatial factor == ' num2str(spatialFactor)]);
 
             sz = size(A);
             imgall = reshape(A, sz(1)*sz(2), sz(3));
@@ -998,7 +998,7 @@ classdef movieData
             if isempty(ROI_all)
                 disp('Seeds not provided (no manually defined seeds!)')
                 disp('Generating seeds evenly covering current rois...')
-                roi = ROI.genSeedingROIs(total_seeds,downSampleRatio,sz(1:2));
+                roi = ROI.genSeedingROIs(total_seeds,sz(1:2));
                 sflag = 1; % for automatically generated seeds
             else
 
@@ -1018,14 +1018,14 @@ classdef movieData
                         end
                     end
                     if flag == 1
-                        [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                        [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz.*spatialFactor);
                         disp('Program thinks that rois are generated based on ORIGINAL movie size')
                     else
                         disp('Program thinks that rois are generated based on DOWNSAMPLED movie size')
                     end
 
                 catch
-                    [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz./downSampleRatio);
+                    [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz.*spatialFactor);
                     disp('Program thinks that rois are generated based on ORIGINAL movie size')
                 end
                 disp(['Recommending generate ROIs based on downsampled movie/frames!'])
@@ -1047,7 +1047,7 @@ classdef movieData
                 %manually generated seeds
                 if sflag == 2
                     if size(roi{r}, 1) ~= sz(1)
-                        mask = imresize(roi{r}, downSampleRatio, 'bilinear');
+                        mask = imresize(roi{r}, 1/spatialFactor, 'bilinear');
                     else
                         mask = roi{r};
                     end
@@ -1091,7 +1091,7 @@ classdef movieData
                 if sflag == 1
                     movieData.plotCorrM(roi, corrMatrix)
                 elseif sflag == 2
-                    movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', downSampleRatio)
+                    movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', spatialFactor)
                 end
             end
             
@@ -1109,7 +1109,7 @@ classdef movieData
         % Inputs:
         %       roi           seeds indices 
         %       corrMatrix    correlation matrix
-        %       downsample    downsample ratio of the original matrix
+        %       spatialFactor    spatialFactor of the original matrix
         %       roipolygon    polygon region of the input seeds
         %
         % Outputs:
@@ -1118,7 +1118,7 @@ classdef movieData
             disp('If you have manually defined seeds, please do follow:')
             disp('1. Get ROI_all from your .zip roi file using ROI class')
             disp('2. [roi,roiPolygon] = ROI.generateROIArray(ROI_all,sz);')
-            disp('plotCorrM(roi, corrMatrix, ''roipolygon'', roiPolygon value, ''downsample'', downsample ratio)')
+            disp('plotCorrM(roi, corrMatrix, ''roipolygon'', roiPolygon value, ''spatialFactor'', spatial factor)')
             
             sflag = 1;
             if nargin < 2
@@ -1137,7 +1137,7 @@ classdef movieData
                         case 'roipolygon'
                             roiPolygon = varargin{i+1};
                         case 'downsample'
-                            downSampleRatio = varargin{i+1};
+                            spatialFactor = varargin{i+1};
                     end
                 end
             end
@@ -1150,13 +1150,13 @@ classdef movieData
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
                 imagesc(cur_img); colormap jet; colorbar; axis image
-                caxis([-0.5, 1]); title(['roi:', num2str(r)]);
+                caxis([-0.2, 1]); title(['roi:', num2str(r)]);
                 hold on                   
 
                 %Label seed position
                 if sflag == 2
                     if size(roi{r}, 1) ~= sz(1)
-                        fill(roiPolygon{r}(:, 1).*downSampleRatio, roiPolygon{r}(:, 2).*downSampleRatio, 'y')
+                        fill(roiPolygon{r}(:, 1)./spatialFactor, roiPolygon{r}(:, 2)./spatialFactor, 'y')
                     else
                         fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
                     end
@@ -1332,14 +1332,14 @@ classdef movieData
         end
                 
              
-        function [iniDimFlag,A_filtered,movIdx_saved,saveRatio] = movementAssess(A,downSampleRatio)
+        function [iniDimFlag,A_filtered,movIdx_saved,saveRatio] = movementAssess(A,spatialFactor)
         %Assess frame movement and get rid of frames that move too much
         %If mean frame differences is still very large after filtering out 30% of
         %original frames, increase the initial dimension by 1 when doing svd
         %
         %Inputs:
         %   A                   3D matrix
-        %   downSampleRatio     For further downsampling the matrix
+        %   spatialFactor       For further downsampling the matrix
         %
         %Outputs:
         %   iniDimFlag          Flag whether to increase intial dimention to be
@@ -1349,11 +1349,11 @@ classdef movieData
 
             %Assum the input movie size is 540*640
             if nargin == 1
-                downSampleRatio = 10;
+                spatialFactor = 10;
             end
 
             %Further downsample movie
-            A_DS = movieData.downSampleMovie(A,downSampleRatio);
+            A_DS = movieData.downSampleMovie(A,spatialFactor);
             sz = size(A_DS);
 
             %Get black-white movie only preserve dark part of the movie
@@ -1445,7 +1445,7 @@ classdef movieData
             corrM_re = corrM_re(:,any(~isnan(corrM_re)));
             corrM = reshape(corrM_re,[sz(1),sz(2),size(corrM_re,2)]);
             %Confine the analysis only in non-nan (roi) region
-            corrM = movieData.focusOnroi(corrM);
+            %corrM = movieData.focusOnroi(corrM);
             %Thresholding the matrix 
             thCorrM = movieData.corrMapThresholding(corrM,90);
             CCfiltered_thCorrrM = Integration.filterCC_byFrame(thCorrM);
@@ -1487,8 +1487,43 @@ classdef movieData
 
         end
 
-  
-    end
-           
+        
+        
+        function [corrMatrix,seedsList] = seedsCorrelation(A, seedsList)
+        %Generate seedsbased correaltion matrix from A given seedsList
+        %
+        %Inputs:
+        %   A            3D matrix
+        %   seedsList    list of given seeds (2D subscripts or 1D indices)
+        %
+        %Outputs:
+        %   seedsList    renewed seedsList
+        %   corrMatrix   correlation matrix
+
+            try
+                seedsTrace = [];
+                sz = size(A);
+                if length(size(seedsList)) == 2
+                    seedsList = sub2ind(sz(1:2),seedsList);
+                end
+                imgall = reshape(A, sz(1)*sz(2), sz(3));
+                for r = 1:length(seedsList)
+                    seedTrace(r, :) = squeeze(nanmean(imgall(seedsList(r), :), 1));
+                end
+                corrM = corr(imgall',seedTrace');
+                realSeeds = any(~isnan(corrM));
+                corrM = corrM(:,realSeeds);
+                seedsList = seedsList(realSeeds);
+                sz_3 = size(corrM,2);
+                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
+                save('CorrelationMatrix_provided_list.mat','corrMatrix');
+            catch
+                warning('SeedsList provids seeds that exceed current matrix dimensions!');
+            end
+        end
+        
+        
+        
+    end         
 end
        

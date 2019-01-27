@@ -64,11 +64,16 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R15 01/20/18 Added movement assessment. Only Compatible with movieData R19+
 %R16 01/24/18 Added readSingleMatrix function. Only compatible with
 %byPassProcessing R6+
+%R17 01/26/2018 Added new property to Integration class. Added focusOnRoi
+%procedure after apply ROI mask. Saved the downsampled small mask to obj.
+%Save the obj at the end of the processing. Only comptible with ROI R6+ and
+%movieData R21+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
         flag; %0, for spontaneous activity without stimuli; 1, for activity with stimuli; 2, for wavelength switching 
         nmov; %Number of movies
+        smallMask; %Mask that conform to downsampled ROI-applied movie
     end
     
     methods
@@ -183,7 +188,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 % Decide whether do rigid registration or not
                 if param.rgd_flag 
                     if ~exist('Fixed_frame.mat','file')
-                        A_fixed = A_corrct(:,:,1);
+                        A_fixed = mean(A_corrct,3);
                         save('Fixed_frame.mat','A_fixed');
                     else
                         load('Fixed_frame.mat');
@@ -199,10 +204,16 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
                 %clear A_corrct
+                
+                %Focusing on just the ROI part of the movie
+                A_ROI = movieData.focusOnroi(A_ROI);
 
                 %Downsampling
                 A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
                 clear A_ROI
+                
+                %"Raw" data stored in the object
+                obj.A = A_DS;
                 
                 %Top-hat filtering
                 if ~obj.flag
@@ -218,9 +229,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 end
                 
                 %Impose dFOverF to downsampled matrix
+                TH_A(TH_A == 0) = nan;
                 A_dFoF = Integration.grossDFoverF(TH_A);
                 %Get the downsampled roi mask
                 ds_Mask = repmat(~isnan(A_dFoF(:,:,1)),[1,1,size(A_dFoF,3)]);
+                obj.smallMask = ds_Mask(:,:,1);
                 disp('Gloabal dFoverF is done')
                 disp(' ')
                 
@@ -282,7 +295,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Generate connected components using renewCC function
                 Integration.renewCC(ppA_roi,outputFolder,filename)
             end
-
+            
+            save('Instance.mat','obj','-v7.3');
             disp(['Preprocessing done: ' filename]);
             disp('')
         end
@@ -903,6 +917,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     disp('')
                 else
                     disp([tag ' No matrix detected!!!'])
+                    warning('Inquired matrix does not exist...')
                 end
                 disp('')
             end
