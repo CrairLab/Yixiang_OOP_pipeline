@@ -296,7 +296,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 Integration.renewCC(ppA_roi,outputFolder,filename)
             end
             
-            save('Instance.mat','obj','-v7.3');
+            checkname = [filename(1:length(filename)-4) '_instrance.mat'];
+            save(fullfile(outputFolder,checkname),'obj','-v7.3');
             disp(['Preprocessing done: ' filename]);
             disp('')
         end
