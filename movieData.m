@@ -815,6 +815,7 @@ classdef movieData
                 Idx = find(movIdx);
                 A_toRegister = A(:,:,Idx);
                 tic;
+                A_Registered = [];
                 parfor i = 1:length(Idx)
                     if ~mod(i,200)
                         disp(['Finish rigid registration at frame #' num2str(i)]);
