@@ -66,6 +66,9 @@ classdef movieData
 %processing.
 %R21 01/26/19 added function seedsCorrelation. Several minor improvements.
 %Only compatible with Integration R17+ and ROI R6+
+%R22 01/30/19 change movementAssess function (now called movAssess) and 
+%movieRigReg function so that movAssess can output indices for registration
+%Only compatible with Integration R18+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -782,26 +785,45 @@ classdef movieData
         end
         
         
-        function A = movieRigReg(A_fixed, A)
+        function A = movieRigReg(A, A_fixed, movIdx)
         
         %    Do rigid registration to input matrix A, actually only do
         %    translation to save time
         %    
         %    Inputs:
-        %    A        Original movie without rigid registration
+        %    A        Original movie without rigid registration (3D)
+        %    A_fixed  fixed frame as reference
+        %    movIdx   Indices indicating frames to be registered
         %    
         %    Outputs:
         %    A        Movie after rigid registration
  
             [optimizer, metric] = imregconfig('monomodal');
-            tic;
-            parfor i = 1:size(A,3)
-                if ~mod(i,400)
-                    disp(['Finish rigid registration at frame #' num2str(i)]);
-                end
-                A(:,:,i) = imregister(A(:,:,i), A_fixed, 'translation', optimizer, metric);
+            if nargin == 1
+                A_fixed = nanmean(A,3);
             end
-            toc;
+            if nargin == 2
+                tic;
+                parfor i = 1:size(A,3)
+                    if ~mod(i,400)
+                        disp(['Finish rigid registration at frame #' num2str(i)]);
+                    end
+                    A(:,:,i) = imregister(A(:,:,i), A_fixed, 'translation', optimizer, metric);
+                end
+                toc;
+            elseif nargin == 3
+                Idx = find(movIdx);
+                A_toRegister = A(:,:,Idx);
+                tic;
+                parfor i = 1:length(Idx)
+                    if ~mod(i,200)
+                        disp(['Finish rigid registration at frame #' num2str(i)]);
+                    end
+                    A_Registered(:,:,i) = imregister(A_toRegister(:,:,i), A_fixed, 'translation', optimizer, metric);
+                end
+                A(:,:,Idx) = A_Registered;
+                toc;
+            end
         end
         
         
@@ -1331,8 +1353,9 @@ classdef movieData
             end
         end
                 
-             
-        function [iniDimFlag,A_filtered,movIdx_saved,saveRatio] = movementAssess(A,spatialFactor)
+                
+        
+        function [iniDimFlag,A_filtered,movIdx_output,saveRatio] = movAssess(A,spatialFactor,flag)
         %Assess frame movement and get rid of frames that move too much
         %If mean frame differences is still very large after filtering out 30% of
         %original frames, increase the initial dimension by 1 when doing svd
@@ -1340,16 +1363,22 @@ classdef movieData
         %Inputs:
         %   A                   3D matrix
         %   spatialFactor       For further downsampling the matrix
+        %   flag                flag == 1 discard frames, flag == 0 save
+        %                       indices for rigid registration
         %
         %Outputs:
-        %   iniDimFlag          Flag whether to increase intial dimention to be
+        %   iniDimFlag          Flag whether to increase intial dimension to be
         %                       preseverd in svd
         %   A_filtered          Filtered matrix
+        %   movIdx_output       Indices indicating frames to save (flag ==
+        %                       1) or frames to register (flag == 0)
+        %   saveRatio           Relatively stable frames ratio
         %
 
             %Assum the input movie size is 540*640
             if nargin == 1
                 spatialFactor = 10;
+                flag = 0;
             end
 
             %Further downsample movie
@@ -1364,14 +1393,24 @@ classdef movieData
             A_reBW = reshape(A_BW,[sz(1)*sz(2) sz(3)]);
             A_diff = A_reBW - repmat(A_meanBW,[1 sz(3)]);
             movIdx = sum(abs(A_diff),1);
-
+            
+            if flag %If flag == 1, discard frames with large movements
+                %Threshold for discarding a frame is high
+                movPrct = 0.015;
+                leastRatio = 0.7;
+            else %Else save indices for rigid registration
+                %Threshold for doing rigid registration on a frame is low
+                movPrct = 0.01;
+                leastRatio = 0.5;
+            end
+            
             %If a frame is 1.5% different against the mean frame, consider get rid of it
-            threshold = sz(1)*sz(2)*0.015;
+            threshold = sz(1)*sz(2)*movPrct;
             movIdx_saved = movIdx < threshold;
             saveRatio = sum(movIdx_saved)/sz(3);
 
             %Save at least 70% of the original frame
-            while saveRatio < 0.7
+            while saveRatio < leastRatio
                 threshold = threshold * 1.05;
                 movIdx_saved = movIdx < threshold;
                 saveRatio = sum(movIdx_saved)/sz(3);
@@ -1384,7 +1423,14 @@ classdef movieData
             else
                 iniDimFlag = 0;
             end
-            disp(['Saved frames ratio = ' num2str(saveRatio)]);
+            
+            if flag
+                movIdx_output = movIdx_saved;
+            else
+                movIdx_output = ~movIdx_saved;
+            end
+                
+            disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
 
         end
         
@@ -1448,8 +1494,8 @@ classdef movieData
             %corrM = movieData.focusOnroi(corrM);
             %Thresholding the matrix 
             thCorrM = movieData.corrMapThresholding(corrM,90);
-            CCfiltered_thCorrrM = Integration.filterCC_byFrame(thCorrM);
-            %CCfiltered_thCorrrM = thCorrM;
+            %CCfiltered_thCorrrM = Integration.filterCC_byFrame(thCorrM);
+            CCfiltered_thCorrrM = thCorrM;
             allCCprops = movieData.getFeatures2D(CCfiltered_thCorrrM);
             mean_CCprops = mean(allCCprops);
             allCCprops = allCCprops - mean_CCprops;

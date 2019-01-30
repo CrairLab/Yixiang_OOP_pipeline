@@ -68,6 +68,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %procedure after apply ROI mask. Saved the downsampled small mask to obj.
 %Save the obj at the end of the processing. Only comptible with ROI R6+ and
 %movieData R21+
+%R18 01/30/2018 Changed the way to day rigid registration. Only compatible
+%with movieData R22+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -183,37 +185,46 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
                 %Correct photobleaching
                 A_corrct = Integration.bleachCorrection(obj.A);
+                obj.A = [];
                 disp('Photobleaching corrected!');
-
-                % Decide whether do rigid registration or not
-                if param.rgd_flag 
-                    if ~exist('Fixed_frame.mat','file')
-                        A_fixed = mean(A_corrct,3);
-                        save('Fixed_frame.mat','A_fixed');
-                    else
-                        load('Fixed_frame.mat');
-                    end
-                    A_corrct = movieData.movieRigReg(A_fixed,A_corrct);
-                end
-                
-                %Assess movement, get rid of frames with large motion
-                [iniDimFlag,A_corrct,movIdx_saved,saveRatio] = movieData.movementAssess(A_corrct);
-                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
-                save(fullfile(outputFolder,checkname),'movIdx_saved','saveRatio','iniDimFlag');
-                
+               
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
-                %clear A_corrct
+                disp('Successfully apply ROI')
+                clear A_corrct
                 
                 %Focusing on just the ROI part of the movie
                 A_ROI = movieData.focusOnroi(A_ROI);
-
+                                            
                 %Downsampling
                 A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
+                disp(['Successfully downsample by factor of ' num2str(param.spacialFactor)])
                 clear A_ROI
                 
                 %"Raw" data stored in the object
                 obj.A = A_DS;
+                
+                %Assess movement, get rid of frames with large motion
+                [iniDimFlag,A_filtered,movIdx,saveRatio] = movieData.movAssess(A_DS,5,param.moveAssessFlag);
+                if param.moveAssessFlag
+                    A_DS = A_filtered;
+                end
+                clear A_filtered
+                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
+                save(fullfile(outputFolder,checkname),'movIdx','saveRatio','iniDimFlag');  
+                
+                % if moveAssessFlag == 0, which means the movementAssess
+                % function will output indices for rigid registration, then
+                % doing rigid registration. Otherwise, skip this step.
+                if ~param.moveAssessFlag
+                    if ~exist('Fixed_frame.mat','file')
+                        A_fixed = mean(A_DS,3);
+                        save('Fixed_frame.mat','A_fixed');
+                    else
+                        load('Fixed_frame.mat');
+                    end
+                    A_DS = movieData.movieRigReg(A_DS,A_fixed,movIdx);
+                end
                 
                 %Top-hat filtering
                 if ~obj.flag
@@ -231,6 +242,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Impose dFOverF to downsampled matrix
                 TH_A(TH_A == 0) = nan;
                 A_dFoF = Integration.grossDFoverF(TH_A);
+                clear TH_A A_DS
+                
                 %Get the downsampled roi mask
                 ds_Mask = repmat(~isnan(A_dFoF(:,:,1)),[1,1,size(A_dFoF,3)]);
                 obj.smallMask = ds_Mask(:,:,1);
@@ -261,7 +274,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
                 disp('SVD denosing is done')
                 disp('')
-                clear A_DS A_dFoF
+                clear A_dFoF
                 
                 %Z-scoring de_A along the time dimension
                 de_A = zscore(de_A,1,3);
