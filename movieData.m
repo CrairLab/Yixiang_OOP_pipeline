@@ -1108,7 +1108,8 @@ classdef movieData
                 corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
                 disp('Run seeds based correlation on CPU')
             end
-            save('Correlation_Matrix.mat','corrMatrix');  
+            save('Correlation_Matrix.mat','corrMatrix');
+            save('Seeds.mat','roi');
             
             if plot_flag
                 if sflag == 1

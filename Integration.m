@@ -289,7 +289,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 end
 
                 %Gaussian smoothing
-                Ga_TH_A = Integration.GauSmoo(de_A,2); %set sigma = 2
+                Ga_TH_A = Integration.GauSmoo(de_A,1); %set sigma = 1
                 disp('Gaussian smoothing is done');
                 disp(' ')
                 %clear TH_A

@@ -257,10 +257,13 @@ classdef ROI
             
             %In case the num_rois is already smaller than total_seeds at 
             %the very beginning
+            d = d-1; %Make sure the num_rois > total_seeds;
+            if d == 0
+                d = 1;
+            end
             [num_rois, rois_ini] = ROI.genSeedsMap(Mask,d);
             
             Seeds = rois_ini;
-            save('Seeds.mat','Seeds');
             disp(['Generated ' num2str(num_rois) ' seeds in the defined region(s)'])
 
         end
