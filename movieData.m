@@ -1121,8 +1121,7 @@ classdef movieData
             
         end
         
-        function plotCorrM(roi, corrMatrix, varargin)
-        
+        function plotCorrM(roi, corrMatrix, varargin)       
         % Plot correlation maps based on input seeds & correlation matrix
         % If you have manually defined seeds in .zip file, please do follow:
         % 1. Get ROI_all from your .zip roi file using ROI class
@@ -1169,7 +1168,7 @@ classdef movieData
                           
            %Plot correlation map
            disp(['Actual number of correlation maps = ' num2str(length(roi))])
-            for r = 1:length(roi)
+           parfor r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);

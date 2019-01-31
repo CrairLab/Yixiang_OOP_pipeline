@@ -77,24 +77,34 @@ function byPassPreProcessing(id,param)
                     A_z = zscore(A_rcs,1,3);
                     disp('Z-scored reconstructed matrix')
                     %Gaussian smoothing
-                    Ga_TH_A = Integration.GauSmoo(A_z,2); %set sigma = 2
+                    Ga_TH_A = Integration.GauSmoo(A_z,1); %set sigma = 1
                     disp('Gaussian smoothing is done');
                     disp(' ')
                     %prepare for seed-based correlation analysis
                     A_all = cat(3, A_all, Ga_TH_A);
                 end
             end
-            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag);
+            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,1);
         case 4
-        %Do K-means analysis 
+        %Do connectivity K-means analysis 
             A_all = [];
             for f = 1:nmov
                     [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
                     A_all = cat(3, A_all, curLoad.Ga_TH_A);
             end
-            [A_all,corrMatrix,~,~] = connectivityKmeans(A_all)
+            curLoad = load('Correlation_Matrix.mat');
+            [A_all,corrMatrix,~,~] = connectivityKmeans(A_all,curLoad.corrMatrix,0);
             save('AllMatrix.mat','A_all','-v7.3')
             save('CorrelationMatrix_all.mat','corrMatrix','-v7.3');
+        %Do dFoF K-means analysis
+        case 5
+            A_all = [];
+            for f = 1:nmov
+                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                    A_all = cat(3, A_all, curLoad.Ga_TH_A);
+            end
+            save('AllMatrix.mat','A_all','-v7.3')
+            dFoFKmeans(A_all);
     end
 
     disp(['Processing done at:' pwd]);
