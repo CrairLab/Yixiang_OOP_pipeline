@@ -218,7 +218,7 @@ classdef movieData
         %        A     Smoothed matrix
         
             if nargin == 1
-                sigma = 3;
+                sigma = 1;
             end
                                    
             sz = size(A);
@@ -228,7 +228,7 @@ classdef movieData
 
             parfor fr = 1:sz(3) %option:for, do NOT use for it is 3x slower
                I = A(:,:,fr);
-                   I2 = gaussSmooth(I,sigma,'same');
+                   I2 = gaussSmooth(I,sigma,'smooth');
                Iarr(:,:,fr) = I2;
             end
             A = Iarr;
