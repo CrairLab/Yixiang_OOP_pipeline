@@ -70,6 +70,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %movieData R21+
 %R18 01/30/2018 Changed the way to day rigid registration. Only compatible
 %with movieData R22+
+%R19 01/31/2018 Changed preprocessing order, allowing movement adjustment
+%and dFoF after SVD denosing. Compatiable with byPassPreProcessing R7+
+%R19 Update the way to generate fixed_frame before doing image registration
+%R20 02/07/2018 Update rigid registration procedures 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -204,27 +208,14 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %"Raw" data stored in the object
                 obj.A = A_DS;
                 
-                %Assess movement, get rid of frames with large motion
-                [iniDimFlag,A_filtered,movIdx,saveRatio] = movieData.movAssess(A_DS,5,param.moveAssessFlag);
-                if param.moveAssessFlag
-                    A_DS = A_filtered;
-                end
-                clear A_filtered
-                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
-                save(fullfile(outputFolder,checkname),'movIdx','saveRatio','iniDimFlag');  
-                
-                % if moveAssessFlag == 0, which means the movementAssess
-                % function will output indices for rigid registration, then
-                % doing rigid registration. Otherwise, skip this step.
-                if ~param.moveAssessFlag
-                    if ~exist('Fixed_frame.mat','file')
-                        A_fixed = mean(A_DS,3);
-                        save('Fixed_frame.mat','A_fixed');
-                    else
-                        load('Fixed_frame.mat');
-                    end
-                    A_DS = movieData.movieRigReg(A_DS,A_fixed,movIdx);
-                end
+                %Gaussian smoothing
+                A_DS = Integration.GauSmoo(A_DS,1); %set sigma = 1
+                disp('Gaussian smoothing is done');
+                disp(' ')              
+        
+                %Get the downsampled roi mask
+                ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
+                obj.smallMask = ds_Mask(:,:,1);
                 
                 %Top-hat filtering
                 if ~obj.flag
@@ -238,27 +229,21 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
                     disp('')
                 end
-                
-                %Impose dFOverF to downsampled matrix
-                TH_A(TH_A == 0) = nan;
-                A_dFoF = Integration.grossDFoverF(TH_A);
-                clear TH_A A_DS
-                
-                %Get the downsampled roi mask
-                ds_Mask = repmat(~isnan(A_dFoF(:,:,1)),[1,1,size(A_dFoF,3)]);
-                obj.smallMask = ds_Mask(:,:,1);
-                disp('Gloabal dFoverF is done')
-                disp(' ')
+                clear A_DS
                 
                 %ICA analysis of the matrix
                 try
-                    [icasig, M, W, corr_map] = movieData.getICA(A_dFoF);
+                    [icasig, M, W, corr_map] = movieData.getICA(TH_A);
                     checkname = [filename(1:length(filename)-4) '_ICA.mat'];
                     save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
                 catch
                     disp('ICA analysis failed')
-                end
-
+                end             
+                
+                %Centered data around origins
+                A_mean = nanmean(TH_A,3);
+                TH_A = TH_A - A_mean;
+                
                 %SVD denosing of down-sampled A
                 try 
                     iniDim = param.iniDim;
@@ -266,7 +251,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     iniDim = 1; param.iniDim = iniDim;
                 end
                 %iniDim = iniDim + iniDimFlag;
-                [de_A,U,S,V,iniDim] = Integration.roiSVD(A_dFoF, iniDim);
+                [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
                 %Reaply downsampled roi mask
                 de_A = de_A.*ds_Mask;
                 de_A(de_A == 0) = nan;
@@ -274,42 +259,74 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
                 disp('SVD denosing is done')
                 disp('')
-                clear A_dFoF
+                clear TH_A
+                
+                
+                %Recover the data, this is important for later dFoF
+                de_A = de_A + A_mean;
+   
+                %Assess movement, get rid of frames with large motion
+                [iniDimFlag,A_filtered,movIdx,saveRatio] = movieData.movAssess(de_A,5,param.moveAssessFlag);
+                if param.moveAssessFlag
+                    de_A = A_filtered;
+                end
+                clear A_filtered
+                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
+                save(fullfile(outputFolder,checkname),'movIdx','saveRatio','iniDimFlag');  
+                
+                % if moveAssessFlag == 0, which means the movementAssess
+                % function will output indices for rigid registration, then
+                % doing rigid registration. Otherwise, skip this step.
+                if ~param.moveAssessFlag
+                    if ~exist('Fixed_frame.mat','file')
+                        A_fixed = nanmedian(de_A,3);
+                        save('Fixed_frame.mat','A_fixed');
+                    else
+                        load('Fixed_frame.mat');
+                    end
+                    A_registered = movieData.movieRigReg(de_A,A_fixed,movIdx);
+                    checkname = [filename(1:length(filename)-4) '_registered.mat'];
+                    save(fullfile(outputFolder,checkname),'A_registered');
+                end
+                clear de_A
+                
+                              
+                %Impose dFOverF to downsampled matrix
+                A_registered = A_registered.*ds_Mask;
+                A_registered(A_registered == 0) = nan;
+                A_dFoF = Integration.grossDFoverF(A_registered);
+                clear A_registered
+                disp('Gloabal dFoverF is done')
+                disp(' ')                            
                 
                 %Z-scoring de_A along the time dimension
-                de_A = zscore(de_A,1,3);
-                disp('Z-scored reconstructed matrix')
+                %de_A = zscore(de_A,1,3);
+                %disp('Z-scored reconstructed matrix')
 
                 %Check flag to decide whether to generate frequency/volume maps
                 if obj.flag
                     %Integration.FreqColorMap(TH_A,filename,obj);
-                    de_A(de_A == 0) = nan; % for better intra-Video dFOverF
-                    Integration.FreqVoluColorMap(de_A,filename,obj.nmov);
-                    de_A(isnan(de_A)) = 0; %resume for later filtering
+                    A_dFoF(A_dFoF == 0) = nan; % for better intra-Video dFOverF
+                    Integration.FreqVoluColorMap(A_dFoF,filename,obj.nmov);
+                    %de_A(isnan(de_A)) = 0; %resume for later filtering
                 end
-
-                %Gaussian smoothing
-                Ga_TH_A = Integration.GauSmoo(de_A,1); %set sigma = 1
-                disp('Gaussian smoothing is done');
-                disp(' ')
-                %clear TH_A
-                clear de_A
 
                 %Save filtered matrix
                 checkname = [filename(1:length(filename)-4) '_filtered.mat'];
-                save(fullfile(outputFolder,checkname),'Ga_TH_A','-v7.3');
+                save(fullfile(outputFolder,checkname),'A_dFoF','-v7.3');
     
             end
             
             if obj.flag == 0 %compute connected components only for spontaneous case
                 %For later analysis, only focus on ROI part
-                ppA_roi = movieData.focusOnroi(Ga_TH_A); %ppA: pre-processed A
+                ppA_roi = movieData.focusOnroi(A_dFoF); %ppA: pre-processed A
                 
                 %Generate connected components using renewCC function
                 Integration.renewCC(ppA_roi,outputFolder,filename)
             end
+            clear A_dFoF ppA_roi
             
-            checkname = [filename(1:length(filename)-4) '_instrance.mat'];
+            checkname = [filename(1:length(filename)-4) '_instance.mat'];
             save(fullfile(outputFolder,checkname),'obj','-v7.3');
             disp(['Preprocessing done: ' filename]);
             disp('')

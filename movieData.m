@@ -69,6 +69,7 @@ classdef movieData
 %R22 01/30/19 change movementAssess function (now called movAssess) and 
 %movieRigReg function so that movAssess can output indices for registration
 %Only compatible with Integration R18+
+%R22 02/07/19 Update the movAssess and movieRigReg functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -228,7 +229,7 @@ classdef movieData
 
             parfor fr = 1:sz(3) %option:for, do NOT use for it is 3x slower
                I = A(:,:,fr);
-                   I2 = gaussSmooth(I,sigma,'smooth');
+                   I2 = gaussSmooth(I,sigma,'same');
                Iarr(:,:,fr) = I2;
             end
             A = Iarr;
@@ -797,7 +798,9 @@ classdef movieData
         %    
         %    Outputs:
         %    A        Movie after rigid registration
- 
+            A_fixed(isnan(A_fixed)) = 0;
+            A(isnan(A)) = 0;
+            
             [optimizer, metric] = imregconfig('monomodal');
             if nargin == 1
                 A_fixed = nanmean(A,3);
@@ -825,6 +828,9 @@ classdef movieData
                 A(:,:,Idx) = A_Registered;
                 toc;
             end
+            
+            A(A == 0) = nan;
+            
         end
         
         
@@ -1168,7 +1174,7 @@ classdef movieData
                           
            %Plot correlation map
            disp(['Actual number of correlation maps = ' num2str(length(roi))])
-           parfor r = 1:length(roi)
+           for r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
@@ -1388,33 +1394,39 @@ classdef movieData
 
             %Get black-white movie only preserve dark part of the movie
             A_re = reshape(A_DS,[sz(1)*sz(2) sz(3)]);
-            A_mean = mean(A_re,2);
-            A_BW = A_DS < median(A_DS(:));
-            A_meanBW = A_mean < median(A_DS(:));
+            A_mean = nanmean(A_re,2);
+            A_BW = A_re < repmat(nanmedian(A_re,1) - nanstd(A_re,1),[sz(1)*sz(2) 1]);
+            %A_BW = A_re < repmat(nanmedian(A_re,1),[sz(1)*sz(2) 1]);
+            A_BW = reshape(A_BW, sz);
+            A_meanBW = A_mean < nanmedian(A_DS(:)) - nanstd(A_DS(:));
+            %A_meanBW = A_mean < nanmedian(A_DS(:));
             A_reBW = reshape(A_BW,[sz(1)*sz(2) sz(3)]);
             A_diff = A_reBW - repmat(A_meanBW,[1 sz(3)]);
             movIdx = sum(abs(A_diff),1);
             
             if flag %If flag == 1, discard frames with large movements
                 %Threshold for discarding a frame is high
-                movPrct = 0.015;
+                movPrct = 0.01;
                 leastRatio = 0.7;
             else %Else save indices for rigid registration
                 %Threshold for doing rigid registration on a frame is low
-                movPrct = 0.01;
-                leastRatio = 0.5;
+                movPrct = 0.0025;
+                leastRatio = 0.1;
             end
             
             %If a frame is 1.5% different against the mean frame, consider get rid of it
-            threshold = sz(1)*sz(2)*movPrct;
+            threshold = ceil(sz(1)*sz(2)*movPrct);
             movIdx_saved = movIdx < threshold;
             saveRatio = sum(movIdx_saved)/sz(3);
-
-            %Save at least 70% of the original frame
-            while saveRatio < leastRatio
-                threshold = threshold * 1.05;
-                movIdx_saved = movIdx < threshold;
-                saveRatio = sum(movIdx_saved)/sz(3);
+            
+            
+            if flag
+                %Save at least 70% of the original frame
+                while saveRatio < leastRatio
+                    threshold = threshold * 1.05;
+                    movIdx_saved = movIdx < threshold;
+                    saveRatio = sum(movIdx_saved)/sz(3);
+                end
             end
 
             A_filtered = A(:,:,movIdx_saved);

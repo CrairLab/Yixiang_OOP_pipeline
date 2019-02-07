@@ -13,6 +13,8 @@ function byPassPreProcessing(id,param)
 %doing reconstruction
 %R6 01/24/19 Changed function structure to optimize running efficiency and
 %readability only compatible with Integration class R16+
+%R7 01/31/19 Changed Ga_TH_A to A_dFoF to be compatible with new
+%Integration class. Only compatible with Integration R19+
 
 %Inputs:
 %id       determine which function to run
@@ -39,7 +41,7 @@ function byPassPreProcessing(id,param)
             for f = 1:nmov
                 [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
                 %Chop the matrix to contain only roi
-                ppA_roi = movieData.focusOnroi(curLoad.Ga_TH_A);
+                ppA_roi = movieData.focusOnroi(curLoad.A_dFoF);
                 %Renew connected components
                 Integration.renewCC(ppA_roi,outputFolder,filename)
                 disp(['Preprocessing done: ' filename]);
@@ -49,7 +51,7 @@ function byPassPreProcessing(id,param)
             for f = 1:nmov
                 [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
                 %Chop the matrix to contain only roi
-                ppA_roi = movieData.focusOnroi(curLoad.Ga_TH_A);
+                ppA_roi = movieData.focusOnroi(curLoad.A_dFoF);
                 %make pseudo color movie
                 movieData.makePseudoColorMovie(ppA_roi,filename(1:length(filename)-4))
                 disp(['Preprocessing done: ' filename]);
@@ -60,7 +62,7 @@ function byPassPreProcessing(id,param)
             if param.rechooseIniDim == 0           
                 for f = 1:nmov
                     [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
-                    A_all = cat(3, A_all, curLoad.Ga_TH_A);
+                    A_all = cat(3, A_all, curLoad.A_dFoF);
                 end
             else
                 for f = 1:nmov
@@ -77,11 +79,11 @@ function byPassPreProcessing(id,param)
                     A_z = zscore(A_rcs,1,3);
                     disp('Z-scored reconstructed matrix')
                     %Gaussian smoothing
-                    Ga_TH_A = Integration.GauSmoo(A_z,1); %set sigma = 1
+                    A_dFoF = Integration.GauSmoo(A_z,1); %set sigma = 1
                     disp('Gaussian smoothing is done');
                     disp(' ')
                     %prepare for seed-based correlation analysis
-                    A_all = cat(3, A_all, Ga_TH_A);
+                    A_all = cat(3, A_all, A_dFoF);
                 end
             end
             movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,1);
@@ -90,7 +92,7 @@ function byPassPreProcessing(id,param)
             A_all = [];
             for f = 1:nmov
                     [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
-                    A_all = cat(3, A_all, curLoad.Ga_TH_A);
+                    A_all = cat(3, A_all, curLoad.A_dFoF);
             end
             curLoad = load('Correlation_Matrix.mat');
             [A_all,corrMatrix,~,~] = connectivityKmeans(A_all,curLoad.corrMatrix,0);
@@ -101,7 +103,7 @@ function byPassPreProcessing(id,param)
             A_all = [];
             for f = 1:nmov
                     [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
-                    A_all = cat(3, A_all, curLoad.Ga_TH_A);
+                    A_all = cat(3, A_all, curLoad.A_dFoF);
             end
             save('AllMatrix.mat','A_all','-v7.3')
             dFoFKmeans(A_all);
