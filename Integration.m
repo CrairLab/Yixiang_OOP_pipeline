@@ -74,6 +74,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %and dFoF after SVD denosing. Compatiable with byPassPreProcessing R7+
 %R19 Update the way to generate fixed_frame before doing image registration
 %R20 02/07/2018 Update rigid registration procedures 
+%R21 03/03/2019 Major updation: do gaussian smoothing right after
+%downsampling. Improve movement assessment function. Only compatible
+%with movieData R23+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -191,6 +194,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 A_corrct = Integration.bleachCorrection(obj.A);
                 obj.A = [];
                 disp('Photobleaching corrected!');
+                
+                %Gaussian smoothing
+                A_corrct = Integration.GauSmoo(A_corrct,1); %set sigma = 1
+                disp('Gaussian smoothing is done');
+                disp(' ')
                
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
@@ -207,12 +215,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 
                 %"Raw" data stored in the object
                 obj.A = A_DS;
-                
-                %Gaussian smoothing
-                A_DS = Integration.GauSmoo(A_DS,1); %set sigma = 1
-                disp('Gaussian smoothing is done');
-                disp(' ')              
-        
+                        
                 %Get the downsampled roi mask
                 ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
                 obj.smallMask = ds_Mask(:,:,1);
@@ -260,41 +263,23 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('SVD denosing is done')
                 disp('')
                 clear TH_A
-                
-                
+                              
                 %Recover the data, this is important for later dFoF
                 de_A = de_A + A_mean;
    
-                %Assess movement, get rid of frames with large motion
-                [iniDimFlag,A_filtered,movIdx,saveRatio] = movieData.movAssess(de_A,5,param.moveAssessFlag);
-                if param.moveAssessFlag
-                    de_A = A_filtered;
-                end
-                clear A_filtered
-                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
-                save(fullfile(outputFolder,checkname),'movIdx','saveRatio','iniDimFlag');  
-                
-                % if moveAssessFlag == 0, which means the movementAssess
-                % function will output indices for rigid registration, then
-                % doing rigid registration. Otherwise, skip this step.
-                if ~param.moveAssessFlag
-                    if ~exist('Fixed_frame.mat','file')
-                        A_fixed = nanmedian(de_A,3);
-                        save('Fixed_frame.mat','A_fixed');
-                    else
-                        load('Fixed_frame.mat');
-                    end
-                    A_registered = movieData.movieRigReg(de_A,A_fixed,movIdx);
-                    checkname = [filename(1:length(filename)-4) '_registered.mat'];
-                    save(fullfile(outputFolder,checkname),'A_registered');
-                end
+                %Assess movement, doing translation registration at the
+                %same time
+                [A_registered,tform_all,NormTform_all] = movieData.movAssess(de_A, param.moveAssessFlag);
                 clear de_A
-                
+                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
+                save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
                               
-                %Impose dFOverF to downsampled matrix
+               %Impose dFOverF to downsampled matrix
+                ds_Mask = ds_Mask(:,:,1:size(A_registered,3));
                 A_registered = A_registered.*ds_Mask;
                 A_registered(A_registered == 0) = nan;
                 A_dFoF = Integration.grossDFoverF(A_registered);
+                A_dFoF = A_dFoF.*ds_Mask;
                 clear A_registered
                 disp('Gloabal dFoverF is done')
                 disp(' ')                            

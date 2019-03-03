@@ -70,6 +70,9 @@ classdef movieData
 %movieRigReg function so that movAssess can output indices for registration
 %Only compatible with Integration R18+
 %R22 02/07/19 Update the movAssess and movieRigReg functions
+%R23 03/03/19 Major updation on movAssess (now both assess and register
+%images). Using norm of transformation vector as indicator of movement.
+%Only compatible with Integration R21+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -777,7 +780,7 @@ classdef movieData
         
         function A = grossDFoverF(A)
         %    Doing gross dFoverF calculation.        
-            A_mean = nanmean(A,3);
+            A_mean = mean(A,3);
             sz = size(A);
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
             A_mean = repmat(reshape(A_mean,[sz(1)*sz(2),1]),[1,sz(3)]);
@@ -1362,91 +1365,75 @@ classdef movieData
                 
                 
         
-        function [iniDimFlag,A_filtered,movIdx_output,saveRatio] = movAssess(A,spatialFactor,flag)
+        function [A,tform_all,NormTform_all] = movAssess(A, flag)
         %Assess frame movement and get rid of frames that move too much
         %If mean frame differences is still very large after filtering out 30% of
         %original frames, increase the initial dimension by 1 when doing svd
         %
         %Inputs:
         %   A                   3D matrix
-        %   spatialFactor       For further downsampling the matrix
-        %   flag                flag == 1 discard frames, flag == 0 save
-        %                       indices for rigid registration
+        %   flag                flag == 1 discard frames
         %
         %Outputs:
-        %   iniDimFlag          Flag whether to increase intial dimension to be
-        %                       preseverd in svd
-        %   A_filtered          Filtered matrix
-        %   movIdx_output       Indices indicating frames to save (flag ==
-        %                       1) or frames to register (flag == 0)
-        %   saveRatio           Relatively stable frames ratio
-        %
-
-            %Assum the input movie size is 540*640
+        %   A                   Registered matrix
+        %   tform_all           Array stored all transformation matrices
+        %   NormTform_all       Norm of each matrices (minus I)
+        
             if nargin == 1
-                spatialFactor = 10;
                 flag = 0;
             end
 
-            %Further downsample movie
-            A_DS = movieData.downSampleMovie(A,spatialFactor);
-            sz = size(A_DS);
-
             %Get black-white movie only preserve dark part of the movie
-            A_re = reshape(A_DS,[sz(1)*sz(2) sz(3)]);
+            sz = size(A);
+            A_re = reshape(A,[sz(1)*sz(2) sz(3)]);
             A_mean = nanmean(A_re,2);
             A_BW = A_re < repmat(nanmedian(A_re,1) - nanstd(A_re,1),[sz(1)*sz(2) 1]);
-            %A_BW = A_re < repmat(nanmedian(A_re,1),[sz(1)*sz(2) 1]);
             A_BW = reshape(A_BW, sz);
-            A_meanBW = A_mean < nanmedian(A_DS(:)) - nanstd(A_DS(:));
-            %A_meanBW = A_mean < nanmedian(A_DS(:));
-            A_reBW = reshape(A_BW,[sz(1)*sz(2) sz(3)]);
-            A_diff = A_reBW - repmat(A_meanBW,[1 sz(3)]);
-            movIdx = sum(abs(A_diff),1);
+            A_meanBW = A_mean < nanmedian(A(:)) - nanstd(A(:));
+            A_meanBW = reshape(A_meanBW,sz(1:2));
             
-            if flag %If flag == 1, discard frames with large movements
-                %Threshold for discarding a frame is high
-                movPrct = 0.01;
-                leastRatio = 0.7;
-            else %Else save indices for rigid registration
-                %Threshold for doing rigid registration on a frame is low
-                movPrct = 0.0025;
-                leastRatio = 0.1;
+            if ~exist('Fixed_frame.mat','file')
+                   save('Fixed_frame.mat','A_meanBW');
+            else
+                   load('Fixed_frame.mat');
             end
             
-            %If a frame is 1.5% different against the mean frame, consider get rid of it
-            threshold = ceil(sz(1)*sz(2)*movPrct);
-            movIdx_saved = movIdx < threshold;
-            saveRatio = sum(movIdx_saved)/sz(3);
-            
-            
-            if flag
-                %Save at least 70% of the original frame
-                while saveRatio < leastRatio
-                    threshold = threshold * 1.05;
-                    movIdx_saved = movIdx < threshold;
-                    saveRatio = sum(movIdx_saved)/sz(3);
-                end
-            end
+            %Prepare for rigid registration
+            [optimizer, metric] = imregconfig('monomodal');
+            NormTform_all = zeros(1,sz(3));
+            tform_all = cell(1,sz(3));
 
-            A_filtered = A(:,:,movIdx_saved);
-            if mean(movIdx(movIdx_saved))>sz(1)*sz(2)*0.01
-                disp('There is still significant movement after filtering frames, should get rid of some PCs')
-                iniDimFlag = 1;
-            else
-                iniDimFlag = 0;
+            parfor i = 1:sz(3)
+                %Get transformation matrix using BW matrices
+                curBW = A_BW(:,:,i);
+                tform = imregtform(single(curBW), single(A_meanBW),'translation', optimizer, metric);
+                A_cur = A(:,:,i);
+                A_cur(isnan(A_cur)) = 0;
+                %Get translation vector
+                T = tform.T;
+                A_cur = imtranslate(A_cur,T(3,1:2));
+                A_cur(A_cur == 0) = nan;
+                A(:,:,i) = A_cur;
+                %Calculate norm of the translation vector
+                NormTform_all(i) = norm(T(3,1:2),'fro');
+                tform_all{i} = tform;
             end
             
+            %If the norm is larger than 0.7 (>0.5 at each directions)
+            %label as large-movement frame. Save frames that do not
+            %move that much as movIdx_saved
+            movIdx_saved = NormTform_all < 0.7;
+            %if flag == 1 discard frames with substantial movements
             if flag
-                movIdx_output = movIdx_saved;
-            else
-                movIdx_output = ~movIdx_saved;
-            end
-                
+                A = A(:,:,movIdx_saved);
+            end            
+            saveRatio = sum(movIdx_saved)/sz(3);
+                         
+            disp(['Mean tform magnitude (minus I) = ' mean(NormTform_all)]);
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
 
         end
-        
+                
         
         
         function corrM = corrMapThresholding(corrM,threshpct)
