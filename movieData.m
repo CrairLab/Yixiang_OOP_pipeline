@@ -1434,12 +1434,13 @@ classdef movieData
             end
             
             %if flag == 1 replace moving frames with mean-intensity frame
-            A_mean = reshape(A,sz);
+            A_mean = reshape(A_mean,[sz(1) sz(2)]);
             if flag
-                A(:,:,movIdx_saved) = A_mean;
+                movIdx_replace =  ~movIdx_saved;
+                A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
             end            
                                   
-            disp(['Mean tform magnitude (minus I) = ' mean(NormTform_all)]);
+            disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
 
         end
