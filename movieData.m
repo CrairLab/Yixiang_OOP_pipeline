@@ -1204,7 +1204,7 @@ classdef movieData
                 end
 
                 %Save the plot
-                num_str = num2str(1000 + r);
+                num_str = num2str(10000 + r);
                 num_str(1) = '0';
                 saveas(h, ['roi', num_str, '.png'])     
             end 
