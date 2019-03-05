@@ -1429,7 +1429,7 @@ classdef movieData
             
             %If more than 10% of movie have substantial movements, change
             %flag to 1 so moving frames will be replaced at the next step.
-            if saveRatio < 0.9
+            if saveRatio < 0.95
                 flag = 1;
             end
             
