@@ -73,6 +73,8 @@ classdef movieData
 %R23 03/03/19 Major updation on movAssess (now both assess and register
 %images). Using norm of transformation vector as indicator of movement.
 %Only compatible with Integration R21+
+%R23 03/05/19 Update the movAssess: don't discard frame, replace it with
+%mean-intensity frame.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1423,12 +1425,20 @@ classdef movieData
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
             movIdx_saved = NormTform_all < 0.7;
-            %if flag == 1 discard frames with substantial movements
-            if flag
-                A = A(:,:,movIdx_saved);
-            end            
             saveRatio = sum(movIdx_saved)/sz(3);
-                         
+            
+            %If more than 10% of movie have substantial movements, change
+            %flag to 1 so moving frames will be replaced at the next step.
+            if saveRatio < 0.9
+                flag = 1;
+            end
+            
+            %if flag == 1 replace moving frames with mean-intensity frame
+            A_mean = reshape(A,sz);
+            if flag
+                A(:,:,movIdx_saved) = A_mean;
+            end            
+                                  
             disp(['Mean tform magnitude (minus I) = ' mean(NormTform_all)]);
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
 
