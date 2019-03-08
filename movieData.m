@@ -1431,6 +1431,8 @@ classdef movieData
             %flag to 1 so moving frames will be replaced at the next step.
             if saveRatio < 0.95
                 flag = 1;
+                disp('This movie contains more than 5% moving frames!')
+                disp('Replacing moving frames with mean-intensity frame')
             end
             
             %if flag == 1 replace moving frames with mean-intensity frame
