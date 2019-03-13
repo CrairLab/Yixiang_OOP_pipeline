@@ -75,6 +75,8 @@ classdef movieData
 %Only compatible with Integration R21+
 %R23 03/05/19 Update the movAssess: don't discard frame, replace it with
 %mean-intensity frame.
+%R24 03/13/19  Update the movAssess. Replace spatio-temporal units that are
+%very active with corresponding median intensities.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1380,26 +1382,37 @@ classdef movieData
         %   A                   Registered matrix
         %   tform_all           Array stored all transformation matrices
         %   NormTform_all       Norm of each matrices (minus I)
-        
+
             if nargin == 1
                 flag = 0;
             end
 
             %Get black-white movie only preserve dark part of the movie
+            %A = movieData.grossDFoverF(A);
             sz = size(A);
-            A_re = reshape(A,[sz(1)*sz(2) sz(3)]);
+            A_re = reshape(A,[sz(1)*sz(2) sz(3)]);    
+            A_re(A_re == 0) = nan;
             A_mean = nanmean(A_re,2);
-            A_BW = A_re < repmat(nanmedian(A_re,1) - nanstd(A_re,1),[sz(1)*sz(2) 1]);
-            A_BW = reshape(A_BW, sz);
-            A_meanBW = A_mean < nanmedian(A(:)) - nanstd(A(:));
-            A_meanBW = reshape(A_meanBW,sz(1:2));
-            
-            if ~exist('Fixed_frame.mat','file')
-                   save('Fixed_frame.mat','A_meanBW');
-            else
-                   load('Fixed_frame.mat');
-            end
-            
+
+            %Get median intensities over time
+            medianM = repmat(nanmedian(A_re,2),[1 sz(3)]);
+            %Label active spatial-temporal units
+            activePix = A_re > medianM;
+            %Substitue active units with correspondent median intensities
+            tmp = activePix.*medianM;
+            tmp(isnan(tmp)) = 0;
+            A_re(activePix) = tmp(tmp ~= 0);
+
+            A_re = reshape(A_re, sz);
+            A_re(isnan(A_re)) = 0;
+            A_newMean = nanmean(A_re,3);
+
+            %if ~exist('Fixed_frame.mat','file')
+            %       save('Fixed_frame.mat','A_newMean');
+            %else
+            %       load('Fixed_frame.mat');
+            %end
+
             %Prepare for rigid registration
             [optimizer, metric] = imregconfig('monomodal');
             NormTform_all = zeros(1,sz(3));
@@ -1407,41 +1420,40 @@ classdef movieData
 
             parfor i = 1:sz(3)
                 %Get transformation matrix using BW matrices
-                curBW = A_BW(:,:,i);
-                tform = imregtform(single(curBW), single(A_meanBW),'translation', optimizer, metric);
+                curI = A_re(:,:,i);
+                tform = imregtform(curI, A_newMean ,'translation', optimizer, metric);
                 A_cur = A(:,:,i);
                 A_cur(isnan(A_cur)) = 0;
                 %Get translation vector
                 T = tform.T;
-                A_cur = imtranslate(A_cur,T(3,1:2));
+                A_cur = imwarp(A_cur,tform,'OutputView',imref2d(size(A_newMean)));
                 A_cur(A_cur == 0) = nan;
                 A(:,:,i) = A_cur;
                 %Calculate norm of the translation vector
                 NormTform_all(i) = norm(T(3,1:2),'fro');
                 tform_all{i} = tform;
             end
-            
-            %If the norm is larger than 0.7 (>0.5 at each directions)
+
+            %If the norm is larger than 0.071 (>0.05 at each directions)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.7;
+            movIdx_saved = NormTform_all < 0.071;
             saveRatio = sum(movIdx_saved)/sz(3);
-            
-            %If more than 10% of movie have substantial movements, change
+
+            %If more than 5% of movie have substantial movements, change
             %flag to 1 so moving frames will be replaced at the next step.
             if saveRatio < 0.95
-                flag = 1;
                 disp('This movie contains more than 5% moving frames!')
-                disp('Replacing moving frames with mean-intensity frame')
+                disp('Consider replacing moving frames with mean-intensity frame')
             end
-            
+
             %if flag == 1 replace moving frames with mean-intensity frame
             A_mean = reshape(A_mean,[sz(1) sz(2)]);
             if flag
                 movIdx_replace =  ~movIdx_saved;
                 A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
             end            
-                                  
+
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
 
