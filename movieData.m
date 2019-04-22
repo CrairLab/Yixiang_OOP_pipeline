@@ -13,7 +13,7 @@ classdef movieData
 %R3 11/24/17 In gaussSmooth function, the zscoring step is commented out 
 %R3 11/24/17 More built_in static functions for class movieData 
 %R3 11/24/17 Rename classname from movie to movieData due to conflict with
-%matlab default function movie 
+% %matlab default function movie 
 %R3 11/24/17 Remove function MoviedFoverF 
 %R3 11/24/17 Modify tophat function, remove the ROI checking line 
 %R4 11/25/17 Modify tophat function, remove index variable in the function 
@@ -77,6 +77,8 @@ classdef movieData
 %mean-intensity frame.
 %R24 03/13/19  Update the movAssess. Replace spatio-temporal units that are
 %very active with corresponding median intensities.
+%R25 04/21/19  Update the movAssess. Get rid of neighbouring 5 frames of
+%any identified moving frame. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1181,7 +1183,7 @@ classdef movieData
                           
            %Plot correlation map
            disp(['Actual number of correlation maps = ' num2str(length(roi))])
-           for r = 1:length(roi)
+           parfor r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
@@ -1434,7 +1436,7 @@ classdef movieData
                 tform_all{i} = tform;
             end
 
-            %If the norm is larger than 0.071 (>0.05 at each directions)
+            %If the norm is larger than 0.071 (>5% at each directions)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
             movIdx_saved = NormTform_all < 0.071;
@@ -1448,10 +1450,15 @@ classdef movieData
             end
 
             %if flag == 1 replace moving frames with mean-intensity frame
-            A_mean = reshape(A_mean,[sz(1) sz(2)]);
+            %if flag == 1 discard the neighbouring 5 frames
+            %A_mean = reshape(A_mean,[sz(1) sz(2)]);
             if flag
                 movIdx_replace =  ~movIdx_saved;
-                A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
+                filter = [1,1,1,1,1]; %Discard the neighbouring 5 frames 
+                movIdx_replace = conv(movIdx_replace, filter, 'same');
+                movIdx_replace = movIdx_replace > 0;
+                %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
+                A(:,:,movIdx_replace) = [];
             end            
 
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
