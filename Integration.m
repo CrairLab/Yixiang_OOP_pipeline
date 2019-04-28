@@ -77,6 +77,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R21 03/03/2019 Major updation: do gaussian smoothing right after
 %downsampling. Improve movement assessment function. Only compatible
 %with movieData R23+
+%R22 04/28/2019 Using movAsessUsingEdge. Update GenerateCC function
+%compatible with movieData R26+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -269,7 +271,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
    
                 %Assess movement, doing translation registration at the
                 %same time
-                [A_registered,tform_all,NormTform_all] = movieData.movAssess(de_A, param.moveAssessFlag);
+                [A_registered,tform_all,NormTform_all] = ...
+                    movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
                 clear de_A
                 checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
                 save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
@@ -478,7 +481,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         end
         
         
-        function CC = ccTimeThresh(CC)
+        function CC = ccTimeThresh(CC, durT)
         
         %    Thresholding the CC based on each component's temporal
         %    duration, which is the length of the BoundingBox side along the
@@ -486,9 +489,15 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %   
         %    Inputs:
         %    CC     Connected components from bwconncomp
-        %    
+        %    durT   duration threshold
+        %
         %    Outputs:
         %    CC     Renewed CC
+        
+            if nargin < 2
+                durT = 3;
+            end
+            disp(['Duration threshold = ' num2str(durT)])
         
             STATS = regionprops(CC,'Area','BoundingBox');
             roiBoundingBox = zeros(length(STATS),6);
@@ -499,7 +508,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             newPixelIdxList = CC.PixelIdxList;
             
             %duration should be larger/equal to 3 frames
-            newPixelIdxList(durations(:)<3) = [];
+            newPixelIdxList(durations(:) < durT) = [];
             CC.PixelIdxList = newPixelIdxList;
             CC.NumObjects = length(newPixelIdxList);                 
         end
@@ -768,7 +777,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         end
         
         
-        function [region,BW_ppA] = GenerateCC(ppA,BW_ppA)
+        function [region,BW_ppA] = GenerateCC(ppA,BW_ppA,frameFlag,timeFlag,durT)
         
         %    Generate connected components from pre-processed matrix
         %    
@@ -776,20 +785,36 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %        ppA     Matrix that has been pre-processed
         %        BW_A    Matrix that has been black-white thresholded
         %        filename   current filename
-        
+        %        frameFlag  whether filtering by frame properties
+        %        timeFlag   whether filtering by duration
+        %        durT       duration threshold
+        %
+        %    Outputs:
+        %        region  store all region properties
+        %        BW_ppA  filtered blakc-white matrix
+            
+            if nargin<3
+                frameFlag = 1;
+                timeFlag = 1;
+                durT = 3;
+            end
             
             %Connected components of thresholded A.
             disp('Processing Connected Components and Regionprops')
             disp('')
             
             %Filter BW_ppA by frame using 2D properties of the CCs
-            BW_ppA = Integration.filterCC_byFrame(BW_ppA);
+            if frameFlag
+                BW_ppA = Integration.filterCC_byFrame(BW_ppA);
+            end
             
             %Filter BW_ppA using the 3D properties of the CCs
             CC = bwconncomp(BW_ppA);
             %minSize = Integration.minSpotSize(CC);
             %CC = ccThresh_3D(CC,minSpotSize)
-            CC = Integration.ccTimeThresh(CC);
+            if timeFlag
+                CC = Integration.ccTimeThresh(CC, durT);
+            end
             STATS = regionprops(CC,ppA,'Area','BoundingBox', 'Centroid',...
                 'MaxIntensity', 'MinIntensity', 'MeanIntensity');
             %Integration.makeCCMovie(filename,CC,sz);

@@ -79,6 +79,9 @@ classdef movieData
 %very active with corresponding median intensities.
 %R25 04/21/19  Update the movAssess. Get rid of neighbouring 5 frames of
 %any identified moving frame. 
+%R26 04/28/19  New functin movAssessUsingEdge. Using edge detection for
+%better moving frame detection. False positive could be high, false
+%negative is relatively low. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1183,6 +1186,7 @@ classdef movieData
                           
            %Plot correlation map
            disp(['Actual number of correlation maps = ' num2str(length(roi))])
+           
            parfor r = 1:length(roi)
                 h = figure; 
                 set(gcf,'Visible', 'off');
@@ -1372,18 +1376,18 @@ classdef movieData
                 
         
         function [A,tform_all,NormTform_all] = movAssess(A, flag)
-        %Assess frame movement and get rid of frames that move too much
-        %If mean frame differences is still very large after filtering out 30% of
-        %original frames, increase the initial dimension by 1 when doing svd
+        %   Assess frame movement and get rid of frames that move too much
+        %   If mean frame differences is still very large after filtering out 30% of
+        %   original frames, increase the initial dimension by 1 when doing svd
         %
-        %Inputs:
-        %   A                   3D matrix
-        %   flag                flag == 1 discard frames
+        %   Inputs:
+        %     A                   3D matrix
+        %     flag                flag == 1 discard frames
         %
-        %Outputs:
-        %   A                   Registered matrix
-        %   tform_all           Array stored all transformation matrices
-        %   NormTform_all       Norm of each matrices (minus I)
+        %   Outputs:
+        %     A                   Registered matrix
+        %     tform_all           Array stored all transformation matrices
+        %     NormTform_all       Norm of each matrices (minus I)
 
             if nargin == 1
                 flag = 0;
@@ -1466,6 +1470,135 @@ classdef movieData
 
         end
                 
+        
+        
+        function [A,tform_all,NormTform_all] = movAssessUsingEdge(A, flag, factor)
+        %   Movement assessment using edge detection. Detect edge of each
+        %   frames and the reference frame (median). Do registration using
+        %   edges and detect movement spikes based on magnitute of
+        %   transforming matrix. Discard neighbouring frames around the 
+        %   spikes if flag == 1.
+        %
+        %   Inputs:
+        %      A       input matrix, 3D
+        %      flag    whether discard frames
+        %      factor  fludge factor to control edge detection sensibility
+        %
+        %   Outputs:
+        %      A       filtered matrix
+        %      tform_all           Array stored all transformation matrices
+        %      NormTform_all       Norm of each matrices (minus I)
+
+
+        %fludge factor to control edge detection sensibility
+        if nargin == 1
+            factor = 0.5;
+            flag = 0;
+        end
+
+        if nargin == 2
+            factor = 0.5;
+        end
+
+        %Further downsample movie if it's too large
+        %if (round(size(A,1)/100)>=2)||(round(size(A,2)/100)>=2)
+        %    A = movieData.downSampleMovie(A, 2, 1);
+        %    disp('Further downsample the movie for movement detection...')
+        %end
+
+        %Filtering out top 20% pixels in the median image
+        sz = size(A);
+        A_median = nanmedian(A,3);
+        if ceil(sz(2)/sz(1)) >= 2
+            threshold = 50;
+        else
+            threshold = 80;
+        end
+        Mask = A_median<prctile(A_median(:),threshold);
+
+        %Only do edge detection in the region excluding the top 20% pixels
+        %This will exclude pixels with high activity going on
+        A_median_mask = A_median.*Mask;   
+        A_mask = A.*Mask;
+
+        %Generate threshold from the median image 
+        [~,threshold] = edge(A_median_mask,'Canny');
+
+        %For image dilation
+        %se90 = strel('line',3,90);
+        %se0 = strel('line',3,0);
+
+        parfor i = 1:sz(3)
+            A_cur = A_mask(:,:,i);
+            BW = edge(A_cur,'Canny',threshold * factor);
+            %BWdil = imdilate(BW,[se90 se0]);
+            %BWs(:,:,i) = BWdil;
+            BWs(:,:,i) = BW;
+            if mod(i,1000) == 0
+                disp(['Edge detection finished at frame ' num2str(i)])
+            end
+        end
+
+        %Generate reference frame
+        BW_ref = nanmedian(BWs,3);
+
+        %Filtering connected componets with inconsistent duration
+        [~,BWs] = Integration.GenerateCC(BWs,BWs,0, 1, round(size(BWs,3)./10));
+
+        %Prepare for rigid registration
+        [optimizer, metric] = imregconfig('monomodal');
+        NormTform_all = zeros(1,sz(3));
+        tform_all = cell(1,sz(3));
+
+        parfor i = 1:sz(3)
+            %Get transformation matrix using BW matrices
+            curI = BWs(:,:,i);
+            tform = imregtform(double(curI), BW_ref ,'translation', optimizer, metric);
+            A_cur = A(:,:,i);
+            A_cur(isnan(A_cur)) = 0;
+            %Get translation vector
+            T = tform.T;
+            A_cur = imwarp(A_cur,tform,'OutputView',imref2d(size(BW_ref)));
+            A_cur(A_cur == 0) = nan;
+            A(:,:,i) = A_cur;
+            %Calculate norm of the translation vector
+            NormTform_all(i) = norm(T(3,1:2),'fro');
+            tform_all{i} = tform;
+        end
+
+        %Detect movment spikes from background
+        filter_sp = [-1,2,-1];
+        NormTform_conv = conv(NormTform_all, filter_sp, 'same');
+
+        %Top 10% (zscore > 1.5) are considered movement spikes 
+        NTz = zscore(NormTform_conv);
+        movSpikes  = abs(NTz) > 1;
+
+        %Neibouring 7 frames of the spikes are considered moving frames
+        filter_mov = [1,1,1,1,1,1,1];
+        movFrames = conv(movSpikes, filter_mov, 'same');
+        movFrames = movFrames > 0;
+        saveRatio = 1 - sum(movFrames)/sz(3);
+
+        %If more than 5% of movie have substantial movements, change
+        %flag to 1 so moving frames will be replaced at the next step.
+        if saveRatio < 0.95
+            disp('This movie contains more than 5% moving frames!')
+            disp('Consider to discard moving frames')
+        end
+
+        %if flag == 1 discard the neighbouring 7 frames
+        if flag
+            A(:,:,movFrames) = [];
+            disp('DISCARD MOVING FRAMES!')
+        end
+
+        disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
+        disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
+
+    end
+        
+        
         
         
         function corrM = corrMapThresholding(corrM,threshpct)
