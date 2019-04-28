@@ -1572,7 +1572,7 @@ classdef movieData
 
         %Top 10% (zscore > 1.5) are considered movement spikes 
         NTz = zscore(NormTform_conv);
-        movSpikes  = abs(NTz) > 1;
+        movSpikes  = abs(NTz) > 1.5;
 
         %Neibouring 7 frames of the spikes are considered moving frames
         filter_mov = [1,1,1,1,1,1,1];
