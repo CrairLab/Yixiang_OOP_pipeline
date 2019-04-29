@@ -271,8 +271,17 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
    
                 %Assess movement, doing translation registration at the
                 %same time
-                [A_registered,tform_all,NormTform_all] = ...
-                    movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
+                if param.moveAssessFlag
+                %This method is more sensitive to movement, but can
+                %mis-identify high-activity frames as moving as well
+                    [A_registered,tform_all,NormTform_all] = ...
+                        movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
+                else
+                %This method is less sensitive to activity dynamics, but
+                %might not be able to detect some moving frames
+                    [A_registered,tform_all,NormTform_all] = ...
+                        movieData.movAssess(de_A, param.moveAssessFlag);
+                end
                 clear de_A
                 checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
                 save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
