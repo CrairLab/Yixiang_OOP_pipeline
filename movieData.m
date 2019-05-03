@@ -82,6 +82,7 @@ classdef movieData
 %R26 04/28/19  New functin movAssessUsingEdge. Using edge detection for
 %better moving frame detection. False positive could be high, false
 %negative is relatively low. 
+%R26 05/03/19 Update the SeedBasedCorr_GPU function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1126,8 +1127,15 @@ classdef movieData
                 corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
                 disp('Run seeds based correlation on CPU')
             end
-            save('Correlation_Matrix.mat','corrMatrix');
-            save('Seeds.mat','roi');
+            
+            if ~exist('Correlation_Matrix.mat','file')
+                save('Correlation_Matrix.mat','corrMatrix');
+                save('Seeds.mat','roi');
+            else
+                disp('Correlation matrix file already exsited, add name tag...')
+                save('Correlation_Matrix_new.mat','corrMatrix');
+                save('Seeds_new.mat','roi');
+            end
             
             if plot_flag
                 if sflag == 1

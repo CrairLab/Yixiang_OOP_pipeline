@@ -79,6 +79,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %with movieData R23+
 %R22 04/28/2019 Using movAsessUsingEdge. Update GenerateCC function
 %compatible with movieData R26+
+%R23 05/03/2019 Modify the prePipe configuration so ouputs of different
+%movAssess functions will not ocerwrite each other. Use pre-processed
+%movied from saved instance mat file. Compatiable with byPassProcessing R8+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -153,167 +156,177 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             disp(['Processing: ' filename]);
             disp(' ');
  
-            outputFolder = fullfile(currentFolder,obj.outputFolder);
-            checkname = [filename(1:length(filename)-4) '_filtered.mat'];   
+            outputFolder = fullfile(currentFolder,obj.outputFolder); 
+            mkdir(outputFolder);
             
-            if exist(fullfile(outputFolder,checkname),'file')
-            %Check whether pre-processing has been done before
-                disp('Filtered matrix detected, skip pre-processing...')
-                load(fullfile(outputFolder,checkname));
-                FramesByFreqVolu = 0;
-            else
-                %Check the flag to decide whether do frames-frequency-volume
-                %alignment
-                
-                %Make new folder 
-                outputFolder = fullfile(currentFolder,obj.outputFolder);
-                mkdir(outputFolder);
-                
-                if obj.flag
-
-                    try
-                        FramesByFreqVolu = obj.FramesByFreqAlign;
-                    catch ME
-                        %Handle damaged spike2 files problem
-                        if (strcmp(ME.identifier,'MATLAB:badsubscript'))
-                            disp('')
-                            disp('Index exceeds matrix dimensions. Check Spike2!!')
-                            disp('Skip alignment...')
-                            disp('')
-                        elseif (strcmp(ME.identifier,'MATLAB:unassignedOutputs'))
-                            disp('')
-                            disp('Unassigned Outputs, probably baphy file not provided. Skip alignment...')
-                            disp('')
-                        end
-                        obj.flag = ~obj.flag;
-                        FramesByFreqVolu = 0;
+            if obj.flag
+            %Try to do frame-frequency alignment if flag == 1;
+            %For spontaneous cases this step will be skipped.
+                try
+                    FramesByFreqVolu = obj.FramesByFreqAlign;
+                catch ME
+                    %Handle damaged spike2 files problem
+                    if (strcmp(ME.identifier,'MATLAB:badsubscript'))
+                        disp('')
+                        disp('Index exceeds matrix dimensions. Check Spike2!!')
+                        disp('Skip alignment...')
+                        disp('')
+                    elseif (strcmp(ME.identifier,'MATLAB:unassignedOutputs'))
+                        disp('')
+                        disp('Unassigned Outputs, probably baphy file not provided. Skip alignment...')
+                        disp('')
                     end
-                else
+                    obj.flag = ~obj.flag;
                     FramesByFreqVolu = 0;
                 end
+            else
+                FramesByFreqVolu = 0;
+            end
 
+
+            %If instance matrix exsits, load the object/instance
+            checkname = [filename(1:length(filename)-4) '_instance.mat'];
+            if exist(fullfile(outputFolder,checkname),'file')
+                %Load the downsampled movie from the object
+                disp('Instance matrix detected, skip pre-processing...')
+                curLoad = load(fullfile(outputFolder,checkname));
+                curObj = curLoad.obj;
+                A_DS = curObj.A;
+                clear curObj;
+            else                    
+                %If instance matrix not detected, create one
+                
                 %Correct photobleaching
                 A_corrct = Integration.bleachCorrection(obj.A);
                 obj.A = [];
                 disp('Photobleaching corrected!');
-                
+
                 %Gaussian smoothing
                 A_corrct = Integration.GauSmoo(A_corrct,1); %set sigma = 1
                 disp('Gaussian smoothing is done');
                 disp(' ')
-               
+
                 %Apply ROI mask(s)
                 A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
                 disp('Successfully apply ROI')
                 clear A_corrct
-                
+
                 %Focusing on just the ROI part of the movie
                 A_ROI = movieData.focusOnroi(A_ROI);
-                                            
+
                 %Downsampling
                 A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
                 disp(['Successfully downsample by factor of ' num2str(param.spacialFactor)])
                 clear A_ROI
-                
+
                 %"Raw" data stored in the object
                 obj.A = A_DS;
-                        
+                
                 %Get the downsampled roi mask
                 ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
                 obj.smallMask = ds_Mask(:,:,1);
                 
-                %Top-hat filtering
-                if ~obj.flag
-                    %TH_A = Integration.TopHatFiltering(A_DS);
-                    TH_A = A_DS;
-                    %disp('Top-hat filtering is done');
-                    disp('Not doing top-hat filtering here')
-                else
-                    sz = size(A_DS); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
-                    TH_A = imtophat(A_DS, se);
-                    disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
-                    disp('')
-                end
-                clear A_DS
-                
-                %ICA analysis of the matrix
-                try
-                    [icasig, M, W, corr_map] = movieData.getICA(TH_A);
-                    checkname = [filename(1:length(filename)-4) '_ICA.mat'];
-                    save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
-                catch
-                    disp('ICA analysis failed')
-                end             
-                
-                %Centered data around origins
-                A_mean = nanmean(TH_A,3);
-                TH_A = TH_A - A_mean;
-                
-                %SVD denosing of down-sampled A
-                try 
-                    iniDim = param.iniDim;
-                catch
-                    iniDim = 1; param.iniDim = iniDim;
-                end
-                %iniDim = iniDim + iniDimFlag;
-                [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
-                %Reaply downsampled roi mask
-                de_A = de_A.*ds_Mask;
-                de_A(de_A == 0) = nan;
-                checkname = [filename(1:length(filename)-4) '_SVD.mat'];
-                save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
-                disp('SVD denosing is done')
-                disp('')
-                clear TH_A
-                              
-                %Recover the data, this is important for later dFoF
-                de_A = de_A + A_mean;
-   
-                %Assess movement, doing translation registration at the
-                %same time
-                if param.moveAssessFlag
-                %This method is more sensitive to movement, but can
-                %mis-identify high-activity frames as moving as well
-                    [A_registered,tform_all,NormTform_all] = ...
-                        movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
-                else
-                %This method is less sensitive to activity dynamics, but
-                %might not be able to detect some moving frames
-                    [A_registered,tform_all,NormTform_all] = ...
-                        movieData.movAssess(de_A, param.moveAssessFlag);
-                end
-                clear de_A
-                checkname = [filename(1:length(filename)-4) '_moveAssess.mat'];
-                save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
-                              
-               %Impose dFOverF to downsampled matrix
-                ds_Mask = ds_Mask(:,:,1:size(A_registered,3));
-                A_registered = A_registered.*ds_Mask;
-                A_registered(A_registered == 0) = nan;
-                A_dFoF = Integration.grossDFoverF(A_registered);
-                A_dFoF = A_dFoF.*ds_Mask;
-                clear A_registered
-                disp('Gloabal dFoverF is done')
-                disp(' ')                            
-                
-                %Z-scoring de_A along the time dimension
-                %de_A = zscore(de_A,1,3);
-                %disp('Z-scored reconstructed matrix')
-
-                %Check flag to decide whether to generate frequency/volume maps
-                if obj.flag
-                    %Integration.FreqColorMap(TH_A,filename,obj);
-                    A_dFoF(A_dFoF == 0) = nan; % for better intra-Video dFOverF
-                    Integration.FreqVoluColorMap(A_dFoF,filename,obj.nmov);
-                    %de_A(isnan(de_A)) = 0; %resume for later filtering
-                end
-
-                %Save filtered matrix
-                checkname = [filename(1:length(filename)-4) '_filtered.mat'];
-                save(fullfile(outputFolder,checkname),'A_dFoF','-v7.3');
-    
+                %Save the instance as an object
+                checkname = [filename(1:length(filename)-4) '_instance.mat'];
+                save(fullfile(outputFolder,checkname),'obj','-v7.3');
             end
-            
+
+            %Get the downsampled roi mask
+            ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
+
+            %Top-hat filtering
+            if ~obj.flag
+                %TH_A = Integration.TopHatFiltering(A_DS);
+                TH_A = A_DS;
+                %disp('Top-hat filtering is done');
+                disp('Not doing top-hat filtering here')
+            else
+                sz = size(A_DS); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
+                TH_A = imtophat(A_DS, se);
+                disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
+                disp('')
+            end
+            clear A_DS
+
+            %ICA analysis of the matrix
+            try
+                [icasig, M, W, corr_map] = movieData.getICA(TH_A);
+                checkname = [filename(1:length(filename)-4) '_ICA.mat'];
+                save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
+            catch
+                disp('ICA analysis failed')
+            end             
+
+            %Centered data around origins
+            A_mean = nanmean(TH_A,3);
+            TH_A = TH_A - A_mean;
+
+            %SVD denosing of down-sampled A
+            try 
+                iniDim = param.iniDim;
+            catch
+                iniDim = 1; param.iniDim = iniDim;
+            end
+            %iniDim = iniDim + iniDimFlag;
+            [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
+            %Reaply downsampled roi mask
+            de_A = de_A.*ds_Mask;
+            de_A(de_A == 0) = nan;
+            checkname = [filename(1:length(filename)-4) '_SVD.mat'];
+            save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
+            disp('SVD denosing is done')
+            disp('')
+            clear TH_A
+
+            %Recover the data, this is important for later dFoF
+            de_A = de_A + A_mean;
+
+            %Assess movement, doing translation registration at the
+            %same time
+            if param.moveAssessFlag
+            %This method is more sensitive to movement, but can
+            %mis-identify high-activity frames as moving as well
+                [A_registered,tform_all,NormTform_all] = ...
+                    movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
+                %Save as different filenames when discarding frames
+                movTag = 'dsc';
+            else
+            %This method is less sensitive to activity dynamics, but
+            %might not be able to detect some moving frames
+                [A_registered,tform_all,NormTform_all] = ...
+                    movieData.movAssess(de_A, param.moveAssessFlag);
+                movTag = '';
+            end
+            clear de_A
+            checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
+            save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
+
+           %Impose dFOverF to downsampled matrix
+            ds_Mask = ds_Mask(:,:,1:size(A_registered,3));
+            A_registered = A_registered.*ds_Mask;
+            A_registered(A_registered == 0) = nan;
+            A_dFoF = Integration.grossDFoverF(A_registered);
+            A_dFoF = A_dFoF.*ds_Mask;
+            clear A_registered
+            disp('Gloabal dFoverF is done')
+            disp(' ')                            
+
+            %Z-scoring de_A along the time dimension
+            %de_A = zscore(de_A,1,3);
+            %disp('Z-scored reconstructed matrix')
+
+            %Check flag to decide whether to generate frequency/volume maps
+            if obj.flag
+                %Integration.FreqColorMap(TH_A,filename,obj);
+                A_dFoF(A_dFoF == 0) = nan; % for better intra-Video dFOverF
+                Integration.FreqVoluColorMap(A_dFoF,filename,obj.nmov);
+                %de_A(isnan(de_A)) = 0; %resume for later filtering
+            end
+
+            %Save filtered matrix
+            checkname = [filename(1:length(filename)-4) '_filtered' movTag '.mat'];
+            save(fullfile(outputFolder,checkname),'A_dFoF','-v7.3');
+
             if obj.flag == 0 %compute connected components only for spontaneous case
                 %For later analysis, only focus on ROI part
                 ppA_roi = movieData.focusOnroi(A_dFoF); %ppA: pre-processed A
@@ -323,8 +336,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             end
             clear A_dFoF ppA_roi
             
-            checkname = [filename(1:length(filename)-4) '_instance.mat'];
-            save(fullfile(outputFolder,checkname),'obj','-v7.3');
             disp(['Preprocessing done: ' filename]);
             disp('')
         end
@@ -506,7 +517,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             if nargin < 2
                 durT = 3;
             end
-            disp(['Duration threshold = ' num2str(durT)])
+            %disp(['Duration threshold = ' num2str(durT)])
         
             STATS = regionprops(CC,'Area','BoundingBox');
             roiBoundingBox = zeros(length(STATS),6);

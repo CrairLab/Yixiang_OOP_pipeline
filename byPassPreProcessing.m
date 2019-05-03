@@ -15,6 +15,8 @@ function byPassPreProcessing(id,param)
 %readability only compatible with Integration class R16+
 %R7 01/31/19 Changed Ga_TH_A to A_dFoF to be compatible with new
 %Integration class. Only compatible with Integration R19+
+%R8 05/03/19 Modify seed-based correlation procedures. Only compatible with
+%Integration R23 +.
 
 %Inputs:
 %id       determine which function to run
@@ -59,9 +61,22 @@ function byPassPreProcessing(id,param)
         case 3
         %Do Seed-based correlation 
             A_all = [];
+            if param.moveAssessFlag
+                movTag = 'dsc';
+            else 
+                movTag = '';
+            end             
+            
             if param.rechooseIniDim == 0           
                 for f = 1:nmov
-                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                    try
+                        [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                    catch
+                        disp(['Movement tag = ' movTag]);
+                        disp('Can not read in matrix with this tag, try a new tag...')
+                        movTag = ''
+                        [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                    end
                     A_all = cat(3, A_all, curLoad.A_dFoF);
                 end
             else
@@ -86,7 +101,7 @@ function byPassPreProcessing(id,param)
                     A_all = cat(3, A_all, A_dFoF);
                 end
             end
-            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,1);
+            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,0);
         case 4
         %Do connectivity K-means analysis 
             A_all = [];
@@ -107,6 +122,7 @@ function byPassPreProcessing(id,param)
             end
             save('AllMatrix.mat','A_all','-v7.3')
             dFoFKmeans(A_all);
+          
     end
 
     disp(['Processing done at:' pwd]);
