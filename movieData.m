@@ -1757,10 +1757,11 @@ classdef movieData
            c = clock;
            timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
            nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
-           savename = ['Correlation_Matrix_' nametag '.mat']; 
-
-           save(savename,'corrMatrix');
-           save('Seeds.mat','roi');
+           savename1 = ['Correlation_Matrix_' nametag '.mat'];
+           savename2 = ['Seeds_' nametag '.mat'];
+ 
+           save(savename1,'corrMatrix');
+           save(savename2,'roi');
         end
         
         function [seedTrace, imgall] = timelagTruncate(seedTrace, imgall, timelag)
