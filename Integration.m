@@ -82,6 +82,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %R23 05/03/2019 Modify the prePipe configuration so ouputs of different
 %movAssess functions will not ocerwrite each other. Use pre-processed
 %movied from saved instance mat file. Compatiable with byPassProcessing R8+
+%R24 06/04/19 Update preprocessing procedures. Use new discrete FFT based
+%registration. Only compatible with movieData R27+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -257,9 +259,25 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('ICA analysis failed')
             end             
 
+            %Assess movement, doing translation registration at the
+            %same time
+            if param.moveAssessFlag
+                %Save as different filenames when discarding frames
+                movTag = 'dsc';
+            else
+                movTag = '';
+            end
+            
+            [A_registered,tform_all,NormTform_all] = ...
+            movieData.movAssess(TH_A, param.moveAssessFlag);
+        
+            clear TH_A
+            checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
+            save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
+            
             %Centered data around origins
-            A_mean = nanmean(TH_A,3);
-            TH_A = TH_A - A_mean;
+            A_mean = nanmean(A_registered,3);
+            A_registered = A_registered - A_mean;
 
             %SVD denosing of down-sampled A
             try 
@@ -268,7 +286,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 iniDim = 1; param.iniDim = iniDim;
             end
             %iniDim = iniDim + iniDimFlag;
-            [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
+            [de_A,U,S,V,iniDim] = Integration.roiSVD(A_registered, iniDim);
             %Reaply downsampled roi mask
             de_A = de_A.*ds_Mask;
             de_A(de_A == 0) = nan;
@@ -276,36 +294,16 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
             disp('SVD denosing is done')
             disp('')
-            clear TH_A
+            clear A_registered
 
             %Recover the data, this is important for later dFoF
             de_A = de_A + A_mean;
 
-            %Assess movement, doing translation registration at the
-            %same time
-            if param.moveAssessFlag
-            %This method is more sensitive to movement, but can
-            %mis-identify high-activity frames as moving as well
-                [A_registered,tform_all,NormTform_all] = ...
-                    movieData.movAssessUsingEdge(de_A, param.moveAssessFlag);
-                %Save as different filenames when discarding frames
-                movTag = 'dsc';
-            else
-            %This method is less sensitive to activity dynamics, but
-            %might not be able to detect some moving frames
-                [A_registered,tform_all,NormTform_all] = ...
-                    movieData.movAssess(de_A, param.moveAssessFlag);
-                movTag = '';
-            end
-            clear de_A
-            checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
-            save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');                  
-
            %Impose dFOverF to downsampled matrix
-            ds_Mask = ds_Mask(:,:,1:size(A_registered,3));
-            A_registered = A_registered.*ds_Mask;
-            A_registered(A_registered == 0) = nan;
-            A_dFoF = Integration.grossDFoverF(A_registered);
+            ds_Mask = ds_Mask(:,:,1:size(de_A,3));
+            de_A = de_A.*ds_Mask;
+            de_A(de_A == 0) = nan;
+            A_dFoF = Integration.grossDFoverF(de_A);
             A_dFoF = A_dFoF.*ds_Mask;
             clear A_registered
             disp('Gloabal dFoverF is done')

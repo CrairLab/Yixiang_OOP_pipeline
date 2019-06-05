@@ -17,6 +17,8 @@ function byPassPreProcessing(id,param)
 %Integration class. Only compatible with Integration R19+
 %R8 05/03/19 Modify seed-based correlation procedures. Only compatible with
 %Integration R23 +.
+%R9 06/04/19 Modify seed-based correlation procedures. Only compatible with
+%movieData. Only compatible with movieData R27+
 
 %Inputs:
 %id       determine which function to run
@@ -101,7 +103,8 @@ function byPassPreProcessing(id,param)
                     A_all = cat(3, A_all, A_dFoF);
                 end
             end
-            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,0);
+            movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,0,...
+            param.mean_flag, param.timelag);
         case 4
         %Do connectivity K-means analysis 
             A_all = [];

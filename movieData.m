@@ -83,6 +83,10 @@ classdef movieData
 %better moving frame detection. False positive could be high, false
 %negative is relatively low. 
 %R26 05/03/19 Update the SeedBasedCorr_GPU function
+%R27 06/04/19 Major improvement on SeedBasedCorr_GPU function. Now allow
+%timelag correlation or correlation substracting global averaged traces.
+% Use bottom 5% intensity level as F0 for dF over F calculation
+% Use new movement assessment algorithm based on discrete FFT. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -640,7 +644,8 @@ classdef movieData
             filelist = {};
             n = 0;
             for i = 1:size(temp_info,1)  
-                if ~isempty(findstr(temp_info(i,1).name,'AveragedMatrix_')) && isempty(findstr(temp_info(i,1).name,'threshfactor')) %#ok<FSTR>
+                if ~isempty(findstr(temp_info(i,1).name,'AveragedMatrix_'))...
+                        && isempty(findstr(temp_info(i,1).name,'threshfactor')) %#ok<FSTR>
                     n = n+1;
                     filelist{n,1} = temp_info(i,1).name;
                 end
@@ -788,13 +793,24 @@ classdef movieData
             
         end
         
-        function A = grossDFoverF(A)
-        %    Doing gross dFoverF calculation.        
-            A_mean = mean(A,3);
+        function A = grossDFoverF(A, flag)
+        %    Doing gross dFoverF calculation.
+        if nargin == 1
+            flag = 1;
+        end
+        
             sz = size(A);
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
-            A_mean = repmat(reshape(A_mean,[sz(1)*sz(2),1]),[1,sz(3)]);
-            A = reshape(A_re./A_mean - 1,sz);
+                
+            if flag == 1
+            %Use bottom 5th percentile as F0
+                A_F0 = prctile(A_re,5,2);
+                A_F0 = repmat(A_F0,[1,sz(3)]);
+            else
+            % Use mean values as F0
+                A_F0 = repmat(mean(A_re,2),[1,sz(3)]);
+            end
+            A = reshape(A_re./A_F0 - 1,sz);
             
         end
         
@@ -836,7 +852,8 @@ classdef movieData
                     if ~mod(i,200)
                         disp(['Finish rigid registration at frame #' num2str(i)]);
                     end
-                    A_Registered(:,:,i) = imregister(A_toRegister(:,:,i), A_fixed, 'translation', optimizer, metric);
+                    A_Registered(:,:,i) = imregister(A_toRegister(:,:,i),...
+                        A_fixed, 'translation', optimizer, metric);
                 end
                 A(:,:,Idx) = A_Registered;
                 toc;
@@ -994,7 +1011,8 @@ classdef movieData
         end
 
         
-        function corrMatrix = SeedBasedCorr_GPU(A,spatialFactor,total_seeds,GPU_flag,plot_flag)
+        function corrMatrix = SeedBasedCorr_GPU(A,spatialFactor,...
+                total_seeds,GPU_flag,plot_flag,mean_flag,timelag)
         % Generate seed-based correlation maps based on seeds and filtered matrix
         % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
         % are not available, try to automatically generate seeds that evenly
@@ -1007,7 +1025,10 @@ classdef movieData
         %   total_seeds      number of seeds to be generated
         %   GPU_flag         whether run on GPU
         %   plot_flag        whether plot the correlation maps or not
-        %
+        %   mean_flag        whether substract mean correlation (1 yes)
+        %   timelag          number of frames for time-lag correlation.
+        %                    Can be positive or negative.
+        %   
         % Outpus:
         %   seed-based correlation maps
 
@@ -1026,7 +1047,15 @@ classdef movieData
             end
             
             if ~exist('plot_flag','var')
-                plot_flag = 1;
+                plot_flag = 0;
+            end
+            
+            if ~exist('mean_flag','var')
+                mean_flag = 1;
+            end
+            
+            if ~exist('timelag','var')
+                timelag = 0;
             end
 
             disp(['Note: Defalut spatial factor == ' num2str(spatialFactor)]);
@@ -1101,47 +1130,18 @@ classdef movieData
                 end
                 %Get seed time series 
                 seedTrace(r, :) = squeeze(nanmean(imgall(maskId, :), 1));     
-
             end
 
             %Generate correlation matrix
-            if GPU_flag
-                try
-                    corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
-                    disp('Run seeds based correlation on GPU')
-                catch
-                    corrM = corr(imgall',seedTrace');
-                    realSeeds = any(~isnan(corrM));
-                    corrM = corrM(:,realSeeds);
-                    roi = roi(realSeeds);
-                    sz_3 = size(corrM,2);
-                    corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
-                    disp('Run on GPU failed, run seeds based correlation on CPU')
-                end
-            else
-                corrM = corr(imgall',seedTrace');
-                realSeeds = any(~isnan(corrM));
-                corrM = corrM(:,realSeeds);
-                roi = roi(realSeeds);
-                sz_3 = size(corrM,2);
-                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
-                disp('Run seeds based correlation on CPU')
-            end
-            
-            if ~exist('Correlation_Matrix.mat','file')
-                save('Correlation_Matrix.mat','corrMatrix');
-                save('Seeds.mat','roi');
-            else
-                disp('Correlation matrix file already exsited, add name tag...')
-                save('Correlation_Matrix_new.mat','corrMatrix');
-                save('Seeds_new.mat','roi');
-            end
+            corrMatrix = movieData.generateCorrMatrix(sz, roi, seedTrace,...
+                imgall, GPU_flag, mean_flag, timelag);
             
             if plot_flag
                 if sflag == 1
                     movieData.plotCorrM(roi, corrMatrix)
                 elseif sflag == 2
-                    movieData.plotCorrM(roi, corrMatrix, 'roipolygon', roiPolygon, 'downsample', spatialFactor)
+                    movieData.plotCorrM(roi, corrMatrix, 'roipolygon',...
+                        roiPolygon, 'downsample', spatialFactor)
                 end
             end
             
@@ -1200,15 +1200,15 @@ classdef movieData
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
                 imagesc(cur_img); colormap jet; colorbar; axis image
-                caxis([-0.2, 1]); title(['roi:', num2str(r)]);
+                caxis([-0.5, 1]); title(['roi:', num2str(r)]);
                 hold on                   
 
                 %Label seed position
                 if sflag == 2
                     if size(roi{r}, 1) ~= sz(1)
-                        fill(roiPolygon{r}(:, 1)./spatialFactor, roiPolygon{r}(:, 2)./spatialFactor, 'y')
+                        %fill(roiPolygon{r}(:, 1)./spatialFactor, roiPolygon{r}(:, 2)./spatialFactor, 'y')
                     else
-                        fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
+                        %fill(roiPolygon{r}(:, 1), roiPolygon{r}(:, 2), 'y')
                     end
                 elseif sflag == 1
                     %create a polygon region to label the location of
@@ -1383,10 +1383,11 @@ classdef movieData
                 
                 
         
-        function [A,tform_all,NormTform_all] = movAssess(A, flag)
-        %   Assess frame movement and get rid of frames that move too much
-        %   If mean frame differences is still very large after filtering out 30% of
-        %   original frames, increase the initial dimension by 1 when doing svd
+        function [A,output_all,NormTform_all] = movAssess(A, flag)
+        %   Assess movie and get rid of frames with large movements if flag
+        %   == 1. Use discrete fourier transform algorithm to compare phase
+        %   correlation. When filtering frames, use a step function as the
+        %   convolution kernel (width == 5).
         %
         %   Inputs:
         %     A                   3D matrix
@@ -1394,68 +1395,39 @@ classdef movieData
         %
         %   Outputs:
         %     A                   Registered matrix
-        %     tform_all           Array stored all transformation matrices
+        %     tform_all           The array that stores all transformation matrices
         %     NormTform_all       Norm of each matrices (minus I)
 
             if nargin == 1
                 flag = 0;
             end
-
-            %Get black-white movie only preserve dark part of the movie
-            %A = movieData.grossDFoverF(A);
+            
             sz = size(A);
-            A_re = reshape(A,[sz(1)*sz(2) sz(3)]);    
-            A_re(A_re == 0) = nan;
-            A_mean = nanmean(A_re,2);
-
-            %Get median intensities over time
-            medianM = repmat(nanmedian(A_re,2),[1 sz(3)]);
-            %Label active spatial-temporal units
-            activePix = A_re > medianM;
-            %Substitue active units with correspondent median intensities
-            tmp = activePix.*medianM;
-            tmp(isnan(tmp)) = 0;
-            A_re(activePix) = tmp(tmp ~= 0);
-
-            A_re = reshape(A_re, sz);
-            A_re(isnan(A_re)) = 0;
-            A_newMean = nanmean(A_re,3);
-
-            %if ~exist('Fixed_frame.mat','file')
-            %       save('Fixed_frame.mat','A_newMean');
-            %else
-            %       load('Fixed_frame.mat');
-            %end
-
-            %Prepare for rigid registration
-            [optimizer, metric] = imregconfig('monomodal');
-            NormTform_all = zeros(1,sz(3));
-            tform_all = cell(1,sz(3));
-
-            parfor i = 1:sz(3)
-                %Get transformation matrix using BW matrices
-                curI = A_re(:,:,i);
-                tform = imregtform(curI, A_newMean ,'translation', optimizer, metric);
-                A_cur = A(:,:,i);
-                A_cur(isnan(A_cur)) = 0;
-                %Get translation vector
-                T = tform.T;
-                A_cur = imwarp(A_cur,tform,'OutputView',imref2d(size(A_newMean)));
-                A_cur(A_cur == 0) = nan;
-                A(:,:,i) = A_cur;
-                %Calculate norm of the translation vector
-                NormTform_all(i) = norm(T(3,1:2),'fro');
-                tform_all{i} = tform;
+            mask = isnan(A);
+            A(mask) = 0;
+            %Use the median frame as reference
+            A_median = nanmedian(A,3);
+            
+            %Do 2d fft to A_median
+            A_mf = fft2(A_median);
+            parfor i = 1:size(A,3)
+                A_c = A(:,:,i);
+                %Do 2d fft to current frame
+                A_cf = fft2(A_c);
+                [output, Greg] = dftregistration(A_mf,A_cf,2);
+                output_all(i,:) = output;
+                Greg_all(:,:,i) = abs(ifft2(Greg));
             end
+            A = Greg_all.*~mask;
+            NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.071 (>5% at each directions)
+            %If the norm is larger than 0.7 (0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.071;
+            movIdx_saved = NormTform_all < 0.5;
             saveRatio = sum(movIdx_saved)/sz(3);
 
-            %If more than 5% of movie have substantial movements, change
-            %flag to 1 so moving frames will be replaced at the next step.
+            %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
                 disp('This movie contains more than 5% moving frames!')
                 disp('Consider replacing moving frames with mean-intensity frame')
@@ -1741,6 +1713,78 @@ classdef movieData
             end
         end
         
+        
+        function corrMatrix = generateCorrMatrix(sz, roi, seedTrace, imgall, GPU_flag, mean_flag, timelag)
+        %Generate correlation matrix using parameters specified by user
+            
+           %Truncate traces using timelag
+           [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);
+           
+           %Use GPU if GPU_flag == 1
+           if GPU_flag
+                try
+                    corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
+                    disp('Run seeds based correlation on GPU')
+                catch
+                    corrM = corr(imgall',seedTrace');
+                    realSeeds = any(~isnan(corrM));
+                    corrM = corrM(:,realSeeds);
+                    roi = roi(realSeeds);
+                    sz_3 = size(corrM,2);
+                    corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
+                    disp('Run on GPU failed, run seeds based correlation on CPU')
+                end
+            else
+                corrM = corr(imgall',seedTrace');
+                realSeeds = any(~isnan(corrM));
+                corrM = corrM(:,realSeeds);
+                roi = roi(realSeeds);
+                sz_3 = size(corrM,2);
+                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
+                disp('Run seeds based correlation on CPU')
+           end
+            
+           %Substract global mean correlation if mean_flag == 1
+           if mean_flag
+               avg_trace = nanmean(imgall,1);
+               avg_corr = corr(avg_trace', seedTrace');
+               avg_corr = reshape(avg_corr, [1, 1, size(avg_corr,2)]);
+               avg_corr(isnan(avg_corr)) = [];
+               corrMatrix = corrMatrix - avg_corr;
+           end
+                      
+           %Create new save name
+           c = clock;
+           timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
+           nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
+           savename = ['Correlation_Matrix_' nametag '.mat']; 
+
+           save(savename,'corrMatrix');
+           save('Seeds.mat','roi');
+        end
+        
+        function [seedTrace, imgall] = timelagTruncate(seedTrace, imgall, timelag)
+        %Truncate the calcium traces for time-lag correaltion
+       
+            if nargin == 2
+                %zero lag in default
+                timelag = 0;
+            end
+            
+            duration = size(seedTrace,2);
+            
+            %Allow postive or negative time-lag (lagging forward or backward) 
+            if timelag >= 0
+                %forward timelap
+                seedTrace = seedTrace(:, 1 : duration - timelag);
+                imgall = imgall(:, 1 + timelag : duration);
+            else
+                %backward timelap
+                timelag = abs(timelag);
+                seedTrace = seedTrace(:, 1 + timelag : duration);
+                imgall = imgall(:, 1 : duration - timelag);
+            end
+        end
         
         
     end         
