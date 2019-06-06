@@ -87,6 +87,7 @@ classdef movieData
 %timelag correlation or correlation substracting global averaged traces.
 % Use bottom 5% intensity level as F0 for dF over F calculation
 % Use new movement assessment algorithm based on discrete FFT. 
+%R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1051,7 +1052,7 @@ classdef movieData
             end
             
             if ~exist('mean_flag','var')
-                mean_flag = 1;
+                mean_flag = 0;
             end
             
             if ~exist('timelag','var')
@@ -1200,7 +1201,7 @@ classdef movieData
                 set(gcf,'Visible', 'off');
                 cur_img = corrMatrix(:, :, r);
                 imagesc(cur_img); colormap jet; colorbar; axis image
-                caxis([-0.5, 1]); title(['roi:', num2str(r)]);
+                caxis([-0.2, 1]); title(['roi:', num2str(r)]);
                 hold on                   
 
                 %Label seed position
@@ -1718,42 +1719,34 @@ classdef movieData
         %Generate correlation matrix using parameters specified by user
             
            %Truncate traces using timelag
-           [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);
-           
-           %Use GPU if GPU_flag == 1
-           if GPU_flag
-                try
-                    corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
-                    disp('Run seeds based correlation on GPU')
-                catch
-                    corrM = corr(imgall',seedTrace');
-                    realSeeds = any(~isnan(corrM));
-                    corrM = corrM(:,realSeeds);
-                    roi = roi(realSeeds);
-                    sz_3 = size(corrM,2);
-                    corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
-                    disp('Run on GPU failed, run seeds based correlation on CPU')
-                end
-            else
-                corrM = corr(imgall',seedTrace');
-                realSeeds = any(~isnan(corrM));
-                corrM = corrM(:,realSeeds);
-                roi = roi(realSeeds);
-                sz_3 = size(corrM,2);
-                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
-                disp('Run seeds based correlation on CPU')
-           end
+           [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
             
-           %Substract global mean correlation if mean_flag == 1
+           %Control on mean-activity-trace using partial correlation if mean_flag == 1
            if mean_flag
                avg_trace = nanmean(imgall,1);
-               avg_corr = corr(avg_trace', seedTrace');
-               avg_corr = reshape(avg_corr, [1, 1, size(avg_corr,2)]);
-               avg_corr(isnan(avg_corr)) = [];
-               corrMatrix = corrMatrix - avg_corr;
+               corrM = partialcorr(imgall',seedTrace', avg_trace');
+               [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
+               disp('Doing partial correlation on CPU...')
+           else
+               %Use GPU if GPU_flag == 1
+               if GPU_flag
+                    try
+                        corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
+                        disp('Run seeds based correlation on GPU')
+                        warning('Can not do partial correlation when using GPU!')
+                    catch
+                        corrM = corr(imgall',seedTrace');
+                        [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
+                        disp('Run on GPU failed, run seeds based correlation on CPU')
+                    end
+                else
+                    corrM = corr(imgall',seedTrace');
+                    [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
+                    disp('Run seeds based correlation on CPU')
+               end
            end
                       
-           %Create new save name
+           %Create new savenames
            c = clock;
            timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
            nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
@@ -1762,7 +1755,20 @@ classdef movieData
  
            save(savename1,'corrMatrix');
            save(savename2,'roi');
+           
+           %Build-in function to filter nan correlation map
+           function [corrMatrix, roi]= filterNaNCorrMap(corrM, roi, sz)
+            %Filter out correlation maps that are essentially nan
+                realSeeds = any(~isnan(corrM));
+                corrM = corrM(:,realSeeds);
+                roi = roi(realSeeds);
+                sz_3 = size(corrM,2);
+                corrMatrix = reshape(corrM,sz(1),sz(2),sz_3);
+           end
+                     
         end
+        
+
         
         function [seedTrace, imgall] = timelagTruncate(seedTrace, imgall, timelag)
         %Truncate the calcium traces for time-lag correaltion
