@@ -88,6 +88,8 @@ classdef movieData
 % Use bottom 5% intensity level as F0 for dF over F calculation
 % Use new movement assessment algorithm based on discrete FFT. 
 %R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
+%R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
+%Use the averaged trace of lower 5% std pixels as control. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1721,9 +1723,11 @@ classdef movieData
            %Truncate traces using timelag
            [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
             
-           %Control on mean-activity-trace using partial correlation if mean_flag == 1
+           %Control on mean-activity-trace (lower 5% std) using partial correlation if mean_flag == 1
            if mean_flag
-               avg_trace = nanmean(imgall,1);
+               std_all = nanstd(imgall,0,2);
+               lowPixels = std_all <= prctile(std_all,5);
+               avg_trace = nanmean(imgall(lowPixels,:),1);
                corrM = partialcorr(imgall',seedTrace', avg_trace');
                [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
                disp('Doing partial correlation on CPU...')
@@ -1748,8 +1752,9 @@ classdef movieData
                       
            %Create new savenames
            c = clock;
-           timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
-           nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
+           %timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
+           %nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
+           nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' num2str(size(roi,1))];
            savename1 = ['Correlation_Matrix_' nametag '.mat'];
            savename2 = ['Seeds_' nametag '.mat'];
  
