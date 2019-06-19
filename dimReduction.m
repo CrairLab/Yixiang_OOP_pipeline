@@ -4,7 +4,7 @@ classdef dimReduction
 %of dimensionality reduction analysis on the data including: diffusion    % 
 %map, t-SNE.                                                              %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Add new properties. Improve tSNE function. Compatible with interactive_dim
+%Add new properties. Improve tSNE. Compatible with GUI_dimReduction.
 %GUI app. 06/18/19 R2
 %Author: Yixiang Wang
 %Contact:yixiang.wang@yale.edu
@@ -84,21 +84,20 @@ classdef dimReduction
             A_re = A_re(subIdx, :);
             obj.subIdx = subIdx;
             obj.xy_sub = dimReduction.genXYind(sz, subIdx);
-            obj.A_rd = A_re;
             
             if tflag %Transpose the matrix
                 disp('Transposed the matrix')
-                A_rd = A_re';
+                obj.A_rd = A_re';
             else
-                A_rd = A_re;
+                obj.A_rd = A_re;
             end
             
             disp(['Actual shape of the matrix to be processed: ' ...
-                num2str(size(A_rd))]);
+                num2str(size(obj.A_rd))]);
             clear A_re;
             
-            [obj.Dmap, obj.dParam, ~] = dimReduction.diffmap(A_rd);
-            [obj.Y, obj.tParam, ~] = dimReduction.doTSNE(A_rd);
+            [obj.Dmap, obj.dParam, ~] = dimReduction.diffmap(obj.A_rd);
+            [obj.Y, obj.tParam, ~] = dimReduction.doTSNE(obj.A_rd);
             
         end       
     end
