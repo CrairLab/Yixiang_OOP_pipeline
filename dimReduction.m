@@ -4,18 +4,25 @@ classdef dimReduction
 %of dimensionality reduction analysis on the data including: diffusion    % 
 %map, t-SNE.                                                              %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Add new properties. Improve tSNE function. Compatible with interactive_dim
+%GUI app. 06/18/19 R2
 %Author: Yixiang Wang
 %Contact:yixiang.wang@yale.edu
-%Version: 04/17/19
 
     properties
         fd;        %parameters to further downsample input matrix
         sz_fd;     %size of the further-downsampled movie matrix
         A_rd;      %downsampled movie matrix excluding nan elements
+        A_ref;     %Reference frame (mean)
         tflag;     %flag to transpose the matrix or not
         locflag;   %add location index flag
         locfactor; %add location weighted factor
+        subIdx;    %Indices of non-nan or non-zero elements
         xy_sub;    %xy indicies of non-nan and non-zero pixels
+        Dmap;      %Diffusion map
+        Y;         %tSNE result
+        tParam;    %Parameters used in tSNE
+        dParam;    %Parameters used in diffusion map
     end
     
     methods
@@ -54,6 +61,9 @@ classdef dimReduction
             A_fd = movieData.downSampleMovie(A, fd(1), fd(2));
             sz = size(A_fd);
             
+            %Save the mean as the reference frame
+            obj.A_ref = nanmean(A_fd, 3);
+            
             %Output the further-downsampled movie for quality check
             movieData.makePseudoColorMovie(A_fd, ['A_fd_' num2str(fd(1))...
                 '_' num2str(fd(2)) '.avi'])
@@ -72,24 +82,30 @@ classdef dimReduction
             A_re = reshape(A_fd, [sz(1)*sz(2), sz(3)]);
             subIdx = and((~isnan(A_re(:,1))),(~(A_re(:,1)==0)));
             A_re = A_re(subIdx, :);
+            obj.subIdx = subIdx;
             obj.xy_sub = dimReduction.genXYind(sz, subIdx);
+            obj.A_rd = A_re;
             
             if tflag %Transpose the matrix
-                obj.A_rd = A_re';
                 disp('Transposed the matrix')
+                A_rd = A_re';
             else
-                obj.A_rd = A_re;
+                A_rd = A_re;
             end
+            
             disp(['Actual shape of the matrix to be processed: ' ...
-                num2str(size(obj.A_rd))]);
+                num2str(size(A_rd))]);
             clear A_re;
+            
+            [obj.Dmap, obj.dParam, ~] = dimReduction.diffmap(A_rd);
+            [obj.Y, obj.tParam, ~] = dimReduction.doTSNE(A_rd);
             
         end       
     end
     
     methods(Static)
               
-        function [Dmap, vals] = diffmap(xs, t, m, sigma)
+        function [Dmap, dParam, vals] = diffmap(xs, t, m, sigma)
         %   Perform diffusion map. 
         %
         %   Inputs:
@@ -100,16 +116,28 @@ classdef dimReduction
         %
         %   Outputs:
         %       Dmap     Diffusion map (embedded coordinates)
+        %       dParam   Output the parameters used in diffusion map
         %       vals     Corresponding eigenvalues
-
+        
+            if nargin<2
+                t = 2;
+                m = 3;
+                sigma = [];
+            end
+            
             %Calcultae pairwise distances
             if any(isnan(xs))
                 disp('Detected NaN in input matrix, pdist might fail...')
             end
             pdist_xs = pdist(xs);
+            std_dist = std(pdist_xs);
 
-            if isempty(sigma)
-                sigma = std(pdist_xs);
+            if isempty(sigma)||isnan(sigma)
+                sigma = 2*std_dist;
+            elseif sigma < 0.25*std_dist
+                warning('Input sigma is too small. Rest sigma to 0.25*std_dist!')
+                sigma = 0.25*std_dist;
+                warning(['New sigma is = ' num2str(sigma)]);
             end
             disp(['Sigma is: ', num2str(sigma)])
             
@@ -133,12 +161,17 @@ classdef dimReduction
             vals = diag(L);
             vals = vals(2:end);
             Dmap = psi(:,2:end).*vals'.^t;
-
+            
+            %save parameters
+            dParam.t = 2;
+            dParam.m = 3;
+            dParam.sigma = sigma;
+            
             disp('Diffusion map analysis is done!')
 
         end
                 
-        function [Y, loss] = doTSNE(xs, par)
+        function [Y, par, loss] = doTSNE(xs, par)
         %   Do tSNE analysis using input matrix xs and parameters par
         %
         %   Inptus:
@@ -147,26 +180,29 @@ classdef dimReduction
         %
         %   Outputs:
         %       Y      embeddings, default 3D
+        %       par    output the parameters used in tSNE
         %       loss   KL divergence loss after optimization
         
             try
-                Distance = par.Distance;
-                nd = par.nd;
-                np = par.np;
-                vflag = par.vflag;
-                stdFlag = par.stdFlag;
-                Exaggeration = par.Exaggeration;
-                options = par.options;
+                Distance = par.Distance; %Distance method
+                nd = par.nd; % Number of dimension
+                np = par.np; % NumberPrint
+                px = par.px; % Perplexity
+                vflag = par.vflag; % Verbose flag
+                stdFlag = par.stdFlag; %Standardize flag
+                Exaggeration = par.Exaggeration; % Exaggeration factor 
+                options = par.options; % Other option
             catch
                 disp('Did not provide/ can not read in parameters...')
                 disp('Using default parameters')
-                Distance = 'euclidean';
-                nd = 3;
-                np = 50;
-                stdFlag = false;
-                vflag = 1;
-                Exaggeration = 8;
-                options = statset('MaxIter', 1000);
+                Distance = 'euclidean'; par.Distance = Distance;
+                nd = 3; par.nd = nd;
+                np = 50; par.np = np;
+                px = 30; par.px = px;
+                stdFlag = false; par.stdFlag = stdFlag;
+                vflag = 1; par.vflag = vflag;
+                Exaggeration = 8; par.Exaggeration = Exaggeration;
+                options = statset('MaxIter', 500); par.options = options;
             end
             disp(['Number 2 dimensions = ' num2str(nd)])
             disp(['Distance = ' Distance])
@@ -174,7 +210,8 @@ classdef dimReduction
             disp(['Exaggeration = ' num2str(Exaggeration)])
             
             [Y, loss] = tsne(xs, 'Distance', Distance, 'NumDimensions', nd, 'Standardize', stdFlag, ...
-                'Exaggeration', Exaggeration, 'NumPrint', np, 'Verbose', vflag, 'Options', options);
+            'Perplexity', px,'Exaggeration', Exaggeration, 'NumPrint', np, 'Verbose', vflag, ...
+            'Options', options);
                       
         end
         
