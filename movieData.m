@@ -90,6 +90,7 @@ classdef movieData
 %R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
 %R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
 %Use the averaged trace of lower 5% std pixels as control. 
+%R28 06/20/19 Debug the SeedBasedCor_GPU function
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1136,7 +1137,7 @@ classdef movieData
             end
 
             %Generate correlation matrix
-            corrMatrix = movieData.generateCorrMatrix(sz, roi, seedTrace,...
+            [corrMatrix, roi] = movieData.generateCorrMatrix(sz, roi, seedTrace,...
                 imgall, GPU_flag, mean_flag, timelag);
             
             if plot_flag
@@ -1717,7 +1718,7 @@ classdef movieData
         end
         
         
-        function corrMatrix = generateCorrMatrix(sz, roi, seedTrace, imgall, GPU_flag, mean_flag, timelag)
+        function [corrMatrix, roi] = generateCorrMatrix(sz, roi, seedTrace, imgall, GPU_flag, mean_flag, timelag)
         %Generate correlation matrix using parameters specified by user
             
            %Truncate traces using timelag
@@ -1727,6 +1728,7 @@ classdef movieData
            if mean_flag
                std_all = nanstd(imgall,0,2);
                lowPixels = std_all <= prctile(std_all,5);
+               %avg_trace = nanmean(imgall,1);
                avg_trace = nanmean(imgall(lowPixels,:),1);
                corrM = partialcorr(imgall',seedTrace', avg_trace');
                [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
