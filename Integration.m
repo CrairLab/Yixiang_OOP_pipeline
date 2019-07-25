@@ -268,8 +268,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 movTag = '';
             end
             
+            %Run the movement assessment
             [A_registered,tform_all,NormTform_all] = ...
             movieData.movAssess(TH_A, param.moveAssessFlag);
+            %renew ds_mask
+            ds_Mask = repmat(obj.smallMask,[1,1,size(A_registered,3)]);
         
             clear TH_A
             checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
