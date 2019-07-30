@@ -84,6 +84,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %movied from saved instance mat file. Compatiable with byPassProcessing R8+
 %R24 06/04/19 Update preprocessing procedures. Use new discrete FFT based
 %registration. Only compatible with movieData R27+
+%R25 07/30/19 Modify fileDetector function to detect existed instance.mat
+%files. Allow direct usage of instance.mat files without raw .tif movies.
+%Only compatible with audPipe R9.  
+%Updation history/summary will only be recorded on Github from this version!  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     properties
@@ -187,14 +191,15 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
 
             %If instance matrix exsits, load the object/instance
-            checkname = [filename(1:length(filename)-4) '_instance.mat'];
-            if exist(fullfile(outputFolder,checkname),'file')
-                %Load the downsampled movie from the object
-                disp('Instance matrix detected, skip pre-processing...')
-                curLoad = load(fullfile(outputFolder,checkname));
-                curObj = curLoad.obj;
-                A_DS = curObj.A;
-                clear curObj;
+            if ~isempty(obj.smallMask)
+                %If smallMask property existed, instance.mat file must had
+                %already exisited
+                A_DS = obj.A;
+                sz = size(obj.smallMask);
+                %Recover 3D matrix A_DS
+                if length(size(A_DS)) == 2
+                    A_DS = reshape(A_DS, [sz(1) sz(2) size(A_DS,2)]);
+                end
             else                    
                 %If instance matrix not detected, create one
                 
@@ -220,21 +225,21 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
                 disp(['Successfully downsample by factor of ' num2str(param.spacialFactor)])
                 clear A_ROI
-
-                %"Raw" data stored in the object
-                obj.A = A_DS;
                 
                 %Get the downsampled roi mask
-                ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
-                obj.smallMask = ds_Mask(:,:,1);
+                sz = size(A_DS);
+                ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,sz(3)]);
+                obj.smallMask = ds_Mask(:,:,1);              
+                
+                %"Raw" data stored (reshape to 2D to save space)
+                obj.A = reshape(A_DS, [sz(1)*sz(2), sz(3)]);
                 
                 %Save the instance as an object
                 checkname = [filename(1:length(filename)-4) '_instance.mat'];
                 save(fullfile(outputFolder,checkname),'obj','-v7.3');
+                %delete(filename);
+                disp('Instance.mat file saved, consider delete raw .tif movies!')
             end
-
-            %Get the downsampled roi mask
-            ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,size(A_DS,3)]);
 
             %Top-hat filtering
             if ~obj.flag
@@ -538,9 +543,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         function fileDetector()
         
         %    Generate txt files based on file detected. Generate files.txt as a list
-        %    of names of .tif movies. Generate Spike2files.txt as a list of names of 
-        %    .mat spike2 data. Generat baphyfiles.txt as a list of names of baphy
-        %    files. 
+        %    of names of .tif movies or existed instance .mat files. 
+        %    Generate Spike2files.txt as a list of names of .mat spike2 data. 
+        %    Generat baphyfiles.txt as a list of names of baphy files. 
         %    
         %    Warning: The filenames of spike2/tif moives/baphys should be in
         %    a descending order accordingly. Otherwise the matching will be
@@ -559,7 +564,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 curName = tmp_list(i).name;
                 
                 %skip '.' and '..'
-                if length(curName) < 2
+                if length(curName) <= 2
                     continue
                 end
 
@@ -582,16 +587,39 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                             case '.m'
                                 fprintf(baphyID,'%s\r\n',curName);
                             case '.tif'
-                                if isempty(strfind(curName,'@00'))
+                                if ~contains(curName,'@00')
                                     fprintf(tifID,'%s\r\n',curName);
                                 end
                         end
                     end
-
+                end                               
+            end
+            
+            %Detect existed instace .mat files and write to files.txt
+            filelist = readtext('files.txt',' ');
+            nmov = size(filelist,1);
+            if nmov == 0
+                disp('Did not detect .tif files, try to detect instance.mat files')
+                for i = 1 : length(tmp_list)
+                    curName = tmp_list(i).name;
+                    %Detect subfolders containing keyword 'output'
+                    if contains(curName, 'output')
+                        subFileList = dir(fullfile(cd, curName));
+                        for j = 1:length(subFileList)
+                            subFileName = subFileList(j).name;
+                            %Detect instance .mat files containing keyword 'instance'
+                            if contains(subFileName, 'instance')
+                                %Save the entire path for future loading
+                                writeName = [subFileName(1:end-13), '.tif'];
+                                fprintf(tifID,'%s\r\n',writeName);
+                            end
+                        end
+                    end
                 end
             end
-
+            
             fclose('all');
+            
         end
         
         function filelist = fileDetector_keyword(keyword)
@@ -964,7 +992,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             checkname = [filename(1:length(filename)-4) '_' tag '.mat'];               
             if exist(fullfile(outputFolder,checkname),'file')
                 %Check whether pre-processing has been done before
-                disp([tag 'matrix detected, loading .mat file...'])
+                disp([tag ' matrix detected, loading .mat file...'])
                 curLoad = load(fullfile(outputFolder,checkname));
                 disp('')
             else
@@ -974,11 +1002,12 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 outputFolder = fullfile(currentFolder);
                 if exist(fullfile(outputFolder,checkname),'file')
                     %Check whether pre-processing has been done before
-                    disp([tag 'matrix detected, loading .mat file...'])
+                    disp([tag ' matrix detected, loading .mat file...'])
                     curLoad = load(fullfile(outputFolder,checkname));
                     disp('')
                 else
                     disp([tag ' No matrix detected!!!'])
+                    curLoad = [];
                     warning('Inquired matrix does not exist...')
                 end
                 disp('')

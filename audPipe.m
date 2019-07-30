@@ -16,6 +16,8 @@ function audPipe(param)
 %R8 01/04/18 Improve param passing 
 %Compatiable with Integration R14 or higher!
 %R8 01/15/18 save param to .mat file
+%R9 07/30/19 Modify fileDetector function in Integration to detect existed instance.mat
+%files. Allow direct usage of instance.mat files without raw .tif movies.    
     
     %If run on the HPC, use slurm to change the current directory
     try
@@ -31,7 +33,7 @@ function audPipe(param)
     %Convert spike2 raw data to .mat files
     Integration.Spike2Matlab(cd);
     
-    filelist = readtext('files.txt',' ');
+    filelist = readtext('files.txt','\n');
     nmov = size(filelist,1);
     IdxInAll = cell(nmov,1);
     IdxInAll_1 = cell(nmov,1);
@@ -41,11 +43,21 @@ function audPipe(param)
     save('parameter.mat','param');
     
     %Process each movie sequentially
-    parfor f = 1:nmov 
-        [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
-        IdxInAll{f,1} = Idx;
-        IdxInAll_1{f,1} = Idx1;
-        IdxInAll_2{f,1} = Idx2;   
+    parfor f = 1:nmov
+        disp('Load instance.mat file if existed...')
+        [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
+        if ~isempty(curLoad)
+            disp('Instance matrix detected, skip pre-processing...')
+            curObj = curLoad.obj;
+            curObj.prePipe(param);
+        else
+            disp('Did not detect instance.mat, try to generate obj from .tif files')
+            [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
+            IdxInAll{f,1} = Idx;
+            IdxInAll_1{f,1} = Idx1;
+            IdxInAll_2{f,1} = Idx2;
+        end
+        
     end
     
     %Do averaging across all movies
