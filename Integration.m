@@ -604,16 +604,21 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     curName = tmp_list(i).name;
                     %Detect subfolders containing keyword 'output'
                     if contains(curName, 'output')
+                        %Search the sub folders
                         subFileList = dir(fullfile(cd, curName));
                         for j = 1:length(subFileList)
                             subFileName = subFileList(j).name;
                             %Detect instance .mat files containing keyword 'instance'
-                            if contains(subFileName, 'instance')
+                            if contains(subFileName, 'instance.mat')
                                 %Save the entire path for future loading
                                 writeName = [subFileName(1:end-13), '.tif'];
                                 fprintf(tifID,'%s\r\n',writeName);
                             end
                         end
+                    elseif contains(curName, 'instance.mat')
+                        %Search the root folder
+                        writeName = [curName(1:end-13), '.tif'];
+                        fprintf(tifID,'%s\r\n',writeName);                        
                     end
                 end
             end
@@ -991,7 +996,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             outputFolder = fullfile(currentFolder,cur_Names.outputFolder);
             checkname = [filename(1:length(filename)-4) '_' tag '.mat'];               
             if exist(fullfile(outputFolder,checkname),'file')
-                %Check whether pre-processing has been done before
+                %Check whether pre-processing has been done before in
+                %subfolders
                 disp([tag ' matrix detected, loading .mat file...'])
                 curLoad = load(fullfile(outputFolder,checkname));
                 disp('')
@@ -1001,7 +1007,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('Try loading matrix from pwd')
                 outputFolder = fullfile(currentFolder);
                 if exist(fullfile(outputFolder,checkname),'file')
-                    %Check whether pre-processing has been done before
+                    %Check whether pre-processing has been done before in
+                    %the root folder
                     disp([tag ' matrix detected, loading .mat file...'])
                     curLoad = load(fullfile(outputFolder,checkname));
                     disp('')
