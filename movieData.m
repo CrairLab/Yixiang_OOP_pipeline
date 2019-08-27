@@ -1029,7 +1029,7 @@ classdef movieData
         %   total_seeds      number of seeds to be generated
         %   GPU_flag         whether run on GPU
         %   plot_flag        whether plot the correlation maps or not
-        %   mean_flag        whether substract mean correlation (1 yes)
+        %   mean_flag        whether regress out background correlation (1 yes)
         %   timelag          number of frames for time-lag correlation.
         %                    Can be positive or negative.
         %   
