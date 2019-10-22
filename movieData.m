@@ -1426,31 +1426,31 @@ classdef movieData
             A = Greg_all.*~mask;
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.5 (0.5 pixel at any direction)
+            %If the norm is larger than 0.71 (0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.499;
+            movIdx_saved = NormTform_all < 0.71;
             saveRatio = sum(movIdx_saved)/sz(3);
 
             %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
                 disp('This movie contains more than 5% moving frames!')
                 disp('Consider replacing moving frames with mean-intensity frame')
+                disp('Turn on discarding processing...')
+                flag = 1;
             end
 
             %if flag == 1 replace moving frames with mean-intensity frame
             %if flag == 1 discard the neighbouring 5 frames
             %A_mean = reshape(A_mean,[sz(1) sz(2)]);
+            A_ori = A;
             if flag
-                A_ori = A;
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1,1,1]; %Discard the neighbouring 5 frames 
+                filter = [1,1,1]; %Discard the neighbouring 3 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
                 A(:,:,movIdx_replace) = [];
-            else
-                A_ori = [];
             end            
 
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);

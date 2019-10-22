@@ -229,18 +229,19 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
                 save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
                 
-                if param.moveAssessFlag
+                if size(A_ori,3) ~= size(A_registered,3)
                     %Save downsampled and registered original movie
-                    if size(A_ori,3) ~= size(A_registered,3)
                     %Only save the original movie if there are frames being
                     %identified as moving and discarded
                         A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
+                        A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
+                            size(A_ori_DS,3)]);
                         checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
-                        save(fullfile(outputFolder,checkname),'A_ori_DS');
-                    end
+                        save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
                 end
                 
                 clear A_ori
+                clear A_ori_DS
                                          
                 %Gaussian smoothing
                 A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1
