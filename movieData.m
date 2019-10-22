@@ -1446,7 +1446,7 @@ classdef movieData
             A_ori = A;
             if flag
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1]; %Discard the neighbouring 3 frames 
+                filter = [1,1,1,1,1,1,1]; %Discard the neighbouring 7 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
