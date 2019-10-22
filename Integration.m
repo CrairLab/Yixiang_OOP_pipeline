@@ -208,15 +208,50 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 obj.A = [];
                 disp('Photobleaching corrected!');
 
+               
+                %Assess movement, doing translation registration at the
+                %same time
+                if param.moveAssessFlag
+                    %Save as different filenames when discarding frames
+                    movTag = 'dsc';
+                else
+                    movTag = '';
+                end
+                
+                %Run the movement assessment
+                tic;
+                [A_registered, A_ori, tform_all,NormTform_all] = ...
+                movieData.movAssess(A_corrct, param.moveAssessFlag);
+                disp('Movement assessment finished...Time cost = ')
+                toc;
+                
+                %Save movemet assessment results
+                checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
+                save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
+                
+                if param.moveAssessFlag
+                    %Save downsampled and registered original movie
+                    if size(A_ori,3) ~= size(A_registered,3)
+                    %Only save the original movie if there are frames being
+                    %identified as moving and discarded
+                        A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
+                        checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
+                        save(fullfile(outputFolder,checkname),'A_ori_DS');
+                    end
+                end
+                
+                clear A_ori
+                                         
                 %Gaussian smoothing
-                A_corrct = Integration.GauSmoo(A_corrct,1); %set sigma = 1
+                A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1
                 disp('Gaussian smoothing is done');
                 disp(' ')
-
+                
                 %Apply ROI mask(s)
-                A_ROI = Integration.ApplyMask(A_corrct,obj.ROIData);
+                A_ROI = Integration.ApplyMask(A_registered,obj.ROIData);
                 disp('Successfully apply ROI')
                 clear A_corrct
+                clear A_registered
 
                 %Focusing on just the ROI part of the movie
                 A_ROI = movieData.focusOnroi(A_ROI);
@@ -263,29 +298,10 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             catch
                 disp('ICA analysis failed')
             end             
-
-            %Assess movement, doing translation registration at the
-            %same time
-            if param.moveAssessFlag
-                %Save as different filenames when discarding frames
-                movTag = 'dsc';
-            else
-                movTag = '';
-            end
-            
-            %Run the movement assessment
-            [A_registered,tform_all,NormTform_all] = ...
-            movieData.movAssess(TH_A, param.moveAssessFlag);
-            %renew ds_mask
-            ds_Mask = repmat(obj.smallMask,[1,1,size(A_registered,3)]);
-        
-            clear TH_A
-            checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
-            save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
             
             %Centered data around origins
-            A_mean = nanmean(A_registered,3);
-            A_registered = A_registered - A_mean;
+            A_mean = nanmean(TH_A,3);
+            TH_A = TH_A - A_mean;
 
             %SVD denosing of down-sampled A
             try 
@@ -294,7 +310,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 iniDim = 1; param.iniDim = iniDim;
             end
             %iniDim = iniDim + iniDimFlag;
-            [de_A,U,S,V,iniDim] = Integration.roiSVD(A_registered, iniDim);
+            [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
             %Reaply downsampled roi mask
             de_A = de_A.*ds_Mask;
             de_A(de_A == 0) = nan;
@@ -302,7 +318,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
             disp('SVD denosing is done')
             disp('')
-            clear A_registered
+            clear TH_A
 
             %Recover the data, this is important for later dFoF
             de_A = de_A + A_mean;

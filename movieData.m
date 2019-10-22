@@ -9,7 +9,7 @@ classdef movieData
 %R2 11/24/17 fetchAverageImage is a static function 
 %R2 11/24/17 More built-in static functions for class movieData 
 %R3 11/24/17 Major change in the way calculating df/f. Now using intra-video
-%df/f. see InsideVideodFOverF and MeanDuringSti 
+%df/f. see InsideVideodFOverF and MeanDuringSti F
 %R3 11/24/17 In gaussSmooth function, the zscoring step is commented out 
 %R3 11/24/17 More built_in static functions for class movieData 
 %R3 11/24/17 Rename classname from movie to movieData due to conflict with
@@ -1387,7 +1387,7 @@ classdef movieData
                 
                 
         
-        function [A,output_all,NormTform_all] = movAssess(A, flag)
+        function [A, A_ori, output_all,NormTform_all] = movAssess(A, flag)
         %   Assess movie and get rid of frames with large movements if flag
         %   == 1. Use discrete fourier transform algorithm to compare phase
         %   correlation. When filtering frames, use a step function as the
@@ -1399,6 +1399,7 @@ classdef movieData
         %
         %   Outputs:
         %     A                   Registered matrix
+        %     A_ori               Registered matrix wo discarding frames
         %     tform_all           The array that stores all transformation matrices
         %     NormTform_all       Norm of each matrices (minus I)
 
@@ -1425,10 +1426,10 @@ classdef movieData
             A = Greg_all.*~mask;
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.7 (0.5 pixel at either direction)
+            %If the norm is larger than 0.5 (0.5 pixel at any direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.5;
+            movIdx_saved = NormTform_all < 0.499;
             saveRatio = sum(movIdx_saved)/sz(3);
 
             %If more than 5% of the movie have substantial movements, warn the user
@@ -1441,12 +1442,15 @@ classdef movieData
             %if flag == 1 discard the neighbouring 5 frames
             %A_mean = reshape(A_mean,[sz(1) sz(2)]);
             if flag
+                A_ori = A;
                 movIdx_replace =  ~movIdx_saved;
                 filter = [1,1,1,1,1]; %Discard the neighbouring 5 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
                 A(:,:,movIdx_replace) = [];
+            else
+                A_ori = [];
             end            
 
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
