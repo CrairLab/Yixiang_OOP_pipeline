@@ -1426,11 +1426,23 @@ classdef movieData
             A = Greg_all.*~mask;
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.7 (0.5 pixel at either direction)
+            %If the norm is larger than 0.49 (>0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.7;
+            movIdx_saved = NormTform_all < 0.49;
             saveRatio = sum(movIdx_saved)/sz(3);
+            
+            if saveRatio < 0.5
+                warning('More than half of the movie will be discarded given current threshold!')
+                warning('Increase motion detection threshold to 0.7!')
+                warning('Double check movie quality!')
+                %If the norm is larger than 0.7 (>0.5 pixel at both directions)
+                %label as large-movement frame. Save frames that do not
+                %move that much as movIdx_saved
+                movIdx_saved = NormTform_all < 0.7;
+                saveRatio = sum(movIdx_saved)/sz(3);
+            end
+                
 
             %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
@@ -1446,7 +1458,7 @@ classdef movieData
             if flag
                 warning('Discarding moving frames here...')
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1,1,1]; %Discard the neighbouring 5 frames 
+                filter = [1,1,1,1,1,1,1,1,1]; %Discard the neighbouring 9 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
