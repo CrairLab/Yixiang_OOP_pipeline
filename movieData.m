@@ -1426,10 +1426,10 @@ classdef movieData
             A = Greg_all.*~mask;
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.71 (0.5 pixel at either direction)
+            %If the norm is larger than 0.7 (0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.71;
+            movIdx_saved = NormTform_all < 0.7;
             saveRatio = sum(movIdx_saved)/sz(3);
 
             %If more than 5% of the movie have substantial movements, warn the user
@@ -1446,7 +1446,7 @@ classdef movieData
             A_ori = A;
             if flag
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1,1,1,1,1]; %Discard the neighbouring 7 frames 
+                filter = [1,1,1,1,1]; %Discard the neighbouring 7 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
