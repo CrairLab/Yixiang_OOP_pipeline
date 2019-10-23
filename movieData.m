@@ -1434,9 +1434,8 @@ classdef movieData
 
             %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
-                disp('This movie contains more than 5% moving frames!')
-                disp('Consider replacing moving frames with mean-intensity frame')
-                disp('Turn on discarding processing...')
+                warning('This movie contains more than 5% moving frames!')
+                warning('Turn on discarding processing...')
                 flag = 1;
             end
 
@@ -1445,8 +1444,9 @@ classdef movieData
             %A_mean = reshape(A_mean,[sz(1) sz(2)]);
             A_ori = A;
             if flag
+                warning('Discarding moving frames here...')
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1,1,1]; %Discard the neighbouring 7 frames 
+                filter = [1,1,1,1,1]; %Discard the neighbouring 5 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
