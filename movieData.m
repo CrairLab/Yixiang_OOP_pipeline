@@ -1432,6 +1432,8 @@ classdef movieData
             movIdx_saved = NormTform_all < 0.49;
             saveRatio = sum(movIdx_saved)/sz(3);
             
+            filter = [1,1,1,1,1]; %Default filter: discard the neighbouring 5 frames 
+            
             if saveRatio < 0.5
                 warning('More than half of the movie will be discarded given current threshold!')
                 warning('Increase motion detection threshold to 0.7!')
@@ -1441,16 +1443,16 @@ classdef movieData
                 %move that much as movIdx_saved
                 movIdx_saved = NormTform_all < 0.7;
                 saveRatio = sum(movIdx_saved)/sz(3);
+                filter = [1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 9 frames
             end
                 
-
             %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
                 warning('This movie contains more than 5% moving frames!')
                 warning('Turn on discarding processing...')
                 flag = 1;
             end
-
+                   
             %if flag == 1 replace moving frames with mean-intensity frame
             %if flag == 1 discard the neighbouring 5 frames
             %A_mean = reshape(A_mean,[sz(1) sz(2)]);
@@ -1458,7 +1460,6 @@ classdef movieData
             if flag
                 warning('Discarding moving frames here...')
                 movIdx_replace =  ~movIdx_saved;
-                filter = [1,1,1,1,1,1,1,1,1]; %Discard the neighbouring 9 frames 
                 movIdx_replace = conv(movIdx_replace, filter, 'same');
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
