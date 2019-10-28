@@ -1426,30 +1426,30 @@ classdef movieData
             A = Greg_all.*~mask;
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
-            %If the norm is larger than 0.51 (>0.5 pixel at either direction)
+            %If the norm is larger than 0.49 (0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
-            movIdx_saved = NormTform_all < 0.51;
+            movIdx_saved = NormTform_all < 0.49;
             saveRatio = sum(movIdx_saved)/sz(3);
             
             filter = [1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 9 frames 
             
-            if saveRatio < 0.5
+            if saveRatio < 0.8
                 warning('More than half of the movie will be discarded given current threshold!')
                 warning('Increase motion detection threshold to 0.7!')
                 warning('Double check movie quality!')
-                %If the norm is larger than 0.71 (>0.5 pixel at both directions)
+                %If the norm is larger than 0.51 (>0.5 pixel at both directions)
                 %label as large-movement frame. Save frames that do not
                 %move that much as movIdx_saved
-                movIdx_saved = NormTform_all < 0.71;
+                movIdx_saved = NormTform_all < 0.51;
                 saveRatio = sum(movIdx_saved)/sz(3);
                 filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames
             end
             
 
             %If more than 5% of the movie have substantial movements, warn the user
-            if saveRatio < 0.95
-                warning('This movie contains more than 5% moving frames!')
+            if (saveRatio < 0.95) || (max(NormTform_all) > 0.51)
+                warning('This movie contains more than 5% moving frames/ movement with big jitters!')
                 warning('Turn on discarding processing...')
                 flag = 1;
             end
