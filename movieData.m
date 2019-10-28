@@ -1446,8 +1446,7 @@ classdef movieData
                 filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames
             end
             
-            mean_mean(NormTform_all)
-                
+
             %If more than 5% of the movie have substantial movements, warn the user
             if saveRatio < 0.95
                 warning('This movie contains more than 5% moving frames!')
