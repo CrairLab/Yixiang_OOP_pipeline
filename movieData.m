@@ -1436,8 +1436,8 @@ classdef movieData
             
             if saveRatio < 0.8
                 warning('More than half of the movie will be discarded given current threshold!')
-                warning('Increase motion detection threshold to 0.7!')
-                warning('Double check movie quality!')
+                disp('Increase motion detection threshold to 0.7!')
+                disp('Double check movie quality!')
                 %If the norm is larger than 0.51 (>0.5 pixel at both directions)
                 %label as large-movement frame. Save frames that do not
                 %move that much as movIdx_saved
@@ -1450,7 +1450,7 @@ classdef movieData
             %If more than 5% of the movie have substantial movements, warn the user
             if (saveRatio < 0.95) || (max(NormTform_all) > 0.51)
                 warning('This movie contains more than 5% moving frames/ movement with big jitters!')
-                warning('Turn on discarding processing...')
+                disp('Turn on discarding processing...')
                 flag = 1;
             end
                    

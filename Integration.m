@@ -209,15 +209,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('Photobleaching corrected!');
 
                
-                %Assess movement, doing translation registration at the
-                %same time
-                if param.moveAssessFlag
-                    %Save as different filenames when discarding frames
-                    movTag = 'dsc';
-                else
-                    movTag = '';
-                end
-                
+                %Assess movement, doing translation registration at the same time
                 %Run the movement assessment
                 tic;
                 [A_registered, A_ori, tform_all,NormTform_all] = ...
@@ -225,21 +217,25 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('Movement assessment finished...Time cost = ')
                 toc;
                 
+
+                if size(A_ori,3) ~= size(A_registered,3)
+                %Save downsampled and registered original movie
+                %Only save the original movie if there are frames being
+                %identified as moving and discarded
+                    A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
+                    A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
+                        size(A_ori_DS,3)]);
+                    checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
+                    save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
+                    movTag = 'dsc';
+                else
+                    movTag = '';
+                end
+                
                 %Save movemet assessment results
                 checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
                 save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
-                
-                if size(A_ori,3) ~= size(A_registered,3)
-                    %Save downsampled and registered original movie
-                    %Only save the original movie if there are frames being
-                    %identified as moving and discarded
-                        A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
-                        A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
-                            size(A_ori_DS,3)]);
-                        checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
-                        save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
-                end
-                
+                                                
                 clear A_ori
                 clear A_ori_DS
                                          
