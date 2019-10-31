@@ -1509,6 +1509,7 @@ classdef movieData
                 movIdx_replace = movIdx_replace > 0;
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
                 A(:,:,movIdx_replace) = [];
+                movIdx_saved = ~movIdx_replace;
             end            
 
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
