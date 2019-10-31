@@ -212,32 +212,42 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Assess movement, doing translation registration at the same time
                 %Run the movement assessment
                 tic;
-                [A_registered, A_ori, tform_all,NormTform_all] = ...
-                movieData.movAssess(A_corrct, param.moveAssessFlag);
-                disp('Movement assessment finished...Time cost = ')
-                toc;
+                if param.moveAssessFlag
+                    %If true, call the movAssess function
+                    [A_registered, A_ori, tform_all, NormTform_all, movIdx_saved] = ...
+                    movieData.movAssess(A_corrct);
                 
-
-                if size(A_ori,3) ~= size(A_registered,3)
-                %Save downsampled and registered original movie
-                %Only save the original movie if there are frames being
-                %identified as moving and discarded
-                    A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
-                    A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
-                        size(A_ori_DS,3)]);
-                    checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
-                    save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
-                    movTag = 'dsc';
+                    if size(A_ori,3) ~= size(A_registered,3)
+                    %Save downsampled and registered original movie
+                    %Only save the original movie if there are frames being
+                    %identified as moving and discarded
+                        A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
+                        A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
+                            size(A_ori_DS,3)]);
+                        checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
+                        save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
+                        clear A_ori
+                        clear A_ori_DS
+                        movTag = 'dsc';
+                    else
+                        movTag = '';
+                    end                    
+                    disp('Movement assessment finished...Time cost = ')
                 else
-                    movTag = '';
+                    [A_registered, tform_all] = movieData.dftReg(A_corrct, 'forAll');
+                    NormTform_all = sqrt(tform_all(:,3).^2 + tform_all(:,4).^2);
+                    movIdx_saved = ones(size(A_corrct,3),1);
+                    disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
+                    disp('Not calling movAsess function. Only do rigid registration. Time cost = ')
                 end
                 
+
+                toc;
+                                             
                 %Save movemet assessment results
                 checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
-                save(fullfile(outputFolder,checkname),'tform_all','NormTform_all');
-                                                
-                clear A_ori
-                clear A_ori_DS
+                save(fullfile(outputFolder,checkname),'tform_all','NormTform_all','movIdx_saved');                
+
                                          
                 %Gaussian smoothing
                 A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1

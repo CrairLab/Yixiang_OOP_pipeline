@@ -1384,34 +1384,42 @@ classdef movieData
                 end
             end
         end
-                
-                
         
-        function [A, A_ori, output_all,NormTform_all] = movAssess(A, flag)
-        %   Assess movie and get rid of frames with large movements if flag
-        %   == 1. Use discrete fourier transform algorithm to compare phase
-        %   correlation. When filtering frames, use a step function as the
-        %   convolution kernel (width == 5).
+        
+        
+        function [A, output_all] = dftReg(A, loadtag)
+        %Use discrete fourier transform algo to register (rigid) input
+        %matrix A. Output the registered matrix
         %
         %   Inputs:
         %     A                   3D matrix
-        %     flag                flag == 1 discard frames
+        %     loadftag            tag for loading specific .mat file     
         %
         %   Outputs:
         %     A                   Registered matrix
-        %     A_ori               Registered matrix wo discarding frames
-        %     tform_all           The array that stores all transformation matrices
-        %     NormTform_all       Norm of each matrices (minus I)
-
-            if nargin == 1
-                flag = 0;
-            end
+        %     output_all          output from dftregistration
             
-            sz = size(A);
+            if nargin < 2
+                loadflag = 0;
+            else
+                loadflag = 1;
+                disp(['loadtag detected: ' loadtag])
+            end
+        
             mask = isnan(A);
             A(mask) = 0;
             %Use the median frame as reference
-            A_median = nanmedian(A,3);
+
+            if loadflag
+                if isfile(['Reference_frame_' loadtag '.mat']) 
+                    load(['Reference_frame_' loadtag '.mat'])
+                else
+                    A_median = nanmedian(A,3);
+                    save(['Reference_frame_' loadtag '.mat'],'A_median')
+                end
+            else
+                A_median = nanmedian(A,3);
+            end
             
             %Do 2d fft to A_median
             A_mf = fft2(A_median);
@@ -1424,6 +1432,43 @@ classdef movieData
                 Greg_all(:,:,i) = abs(ifft2(Greg));
             end
             A = Greg_all.*~mask;
+        
+            disp('Rigid registration finished...')
+        end
+        
+                
+                
+        
+        function [A, A_ori, output_all, NormTform_all, movIdx_saved] = movAssess(A, loadtag)
+        %   Assess movie and get rid of frames with large movements if flag
+        %   == 1. Use discrete fourier transform algorithm to compare phase
+        %   correlation. When filtering frames, use a step function as the
+        %   convolution kernel (width == 5).
+        %
+        %   Inputs:
+        %     A                   3D matrix
+        %
+        %   Outputs:
+        %     A                   Registered matrix
+        %     A_ori               Registered matrix wo discarding frames
+        %     tform_all           The array that stores all transformation matrices
+        %     NormTform_all       Norm of each matrices (minus I)
+        %     movIdx_saved        Indices of matrix that will be saved
+          
+        
+            %In default, do not discard frames
+            flag = 0;
+            
+            sz = size(A);
+            
+            %Do dftregistration
+            if nargin < 2
+                %Whether provided loadtag or not
+                [A, output_all] = movieData.dftReg(A);
+            else
+                [A, output_all] = movieData.dftReg(A, loadtag);
+            end
+                
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
 
             %If the norm is larger than 0.49 (0.5 pixel at either direction)
@@ -1446,7 +1491,6 @@ classdef movieData
                 filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames
             end
             
-
             %If more than 5% of the movie have substantial movements, warn the user
             if (saveRatio < 0.95) || (max(NormTform_all) > 0.51)
                 warning('This movie contains more than 5% moving frames/ movement with big jitters!')
