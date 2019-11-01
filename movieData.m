@@ -1477,7 +1477,7 @@ classdef movieData
             movIdx_saved = NormTform_all < 0.49;
             saveRatio = sum(movIdx_saved)/sz(3);
             
-            filter = [1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 9 frames 
+            filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames 
             
             if saveRatio < 0.8
                 warning('More than half of the movie will be discarded given current threshold!')
@@ -1488,7 +1488,7 @@ classdef movieData
                 %move that much as movIdx_saved
                 movIdx_saved = NormTform_all < 0.51;
                 saveRatio = sum(movIdx_saved)/sz(3);
-                filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames
+                filter = [1,1,1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 13 frames
             end
             
             %If more than 5% of the movie have substantial movements, warn the user
