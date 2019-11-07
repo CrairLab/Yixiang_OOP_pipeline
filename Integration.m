@@ -239,6 +239,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     movIdx_saved = ones(size(A_corrct,3),1);
                     disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
                     disp('Not calling movAsess function. Only do rigid registration. Time cost = ')
+                    movTag = '';
                 end
                 
 
