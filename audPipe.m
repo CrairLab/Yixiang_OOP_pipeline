@@ -1,24 +1,16 @@
 function audPipe(param)
-%
-%R1 11/23/17 Do Gaussian-smoothing first than top-hat 
-%R2 11/24/17 Do top-hat first than do Gaussian 
-%R3 11/24/17 Change the way to do df/f (Now doing intra-grouped-video df/f) see class movieData 
-%R4 12/01/17 Major change to enclose parts of the code into Integration class 
-%!!!NOTE THAT audPipe R4 AND HIGHER VERSIONS ARE ONLY COMPATIABLE WITH 
-%movieData R6/Integration R2 AND HIGHER!!!
-%R4 12/08/17 Incorporate Integration.fileDetector() see Integration.m 
-%R4 12/12/17 Add spacialFactor as input 
-%R5 05/25/18 Compatible with Integration R5+/movieData R8+/ROI R1+. Incorporate
-%wavelength switching. This version is 
-%R5 05/26/18 new input nmov to build the integration object
-%R6 06/13/18 input param (struct) instead of multiple variables
-%R7 10/01/18 Using parfor instead of for loop
-%R8 01/04/18 Improve param passing 
-%Compatiable with Integration R14 or higher!
-%R8 01/15/18 save param to .mat file
-%R9 07/30/19 Modify fileDetector function in Integration to detect existed instance.mat
-%files. Allow direct usage of instance.mat files without raw .tif movies.    
-    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Auditory experiment analysis pipeline. Compatible with spontaneous
+% activity preprocessing/seed-based correlation analysis. Auditory
+% stimulation experiment. Wavelength switching experiment.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% All previous record is saved on Github
+% Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
+% Author: yixiang.wang@yale.edu
+% Latest update:
+% R10 09/11/19 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
     %If run on the HPC, use slurm to change the current directory
     try
         %currentFolder = 'E:\New folder';
@@ -27,41 +19,73 @@ function audPipe(param)
         disp('No such directory...Running on pwd...')
     end
 
+    %Convert spike2 raw data to .mat files
+    %Integration.Spike2Matlab(cd);
+       
     %Detect movie/baphy/spike2/roi files 
     Integration.fileDetector();
-    
-    %Convert spike2 raw data to .mat files
-    Integration.Spike2Matlab(cd);
     
     filelist = readtext('files.txt','\n');
     nmov = size(filelist,1);
     IdxInAll = cell(nmov,1);
     IdxInAll_1 = cell(nmov,1);
     IdxInAll_2 = cell(nmov,1);
-    
+
     %Save current parameters
     save('parameter.mat','param');
     
-    %Process each movie sequentially
-    parfor f = 1:nmov
-        disp('Load instance.mat file if existed...')
-        [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
-        if ~isempty(curLoad)
-            disp('Instance matrix detected, skip pre-processing...')
-            curObj = curLoad.obj;
-            curObj.prePipe(param);
-        else
-            disp('Did not detect instance.mat, try to generate obj from .tif files')
-            [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
-            IdxInAll{f,1} = Idx;
-            IdxInAll_1{f,1} = Idx1;
-            IdxInAll_2{f,1} = Idx2;
+    %Process each movie in parallel/sequentially
+    try
+        parfor f = 1:nmov
+            disp('Load instance.mat file if existed...')
+            [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
+            if ~isempty(curLoad)
+                disp('Instance matrix detected, partially skip pre-processing...')
+                curObj = curLoad.obj;
+                curObj.prePipe(param);
+            else
+                disp('Did not detect instance.mat, try to generate obj from .tif files')
+                [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
+                IdxInAll{f,1} = Idx;
+                IdxInAll_1{f,1} = Idx1;
+                IdxInAll_2{f,1} = Idx2;
+            end
         end
-        
+    catch
+        disp('Parallel running failed, try run the data sequentially!')
+        for f = 1:nmov
+            disp('Load instance.mat file if existed...')
+            [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
+            if ~isempty(curLoad)
+                disp('Instance matrix detected, partially skip pre-processing...')
+                curObj = curLoad.obj;
+                curObj.prePipe(param);
+            else
+                disp('Did not detect instance.mat, try to generate obj from .tif files')
+                [Idx,Idx1,Idx2] = Integration.processMovies(f,nmov,param);                   
+                IdxInAll{f,1} = Idx;
+                IdxInAll_1{f,1} = Idx1;
+                IdxInAll_2{f,1} = Idx2;
+            end
+
+        end
     end
+        
     
+    %Load exptparam(baphy) from saved object
+    try
+        [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',1);
+        curObj = curLoad.obj;
+        exptparam.PreStimSilence = curObj.PreStimSilence;
+        exptparam.PostStimSilence = curObj.PostStimSilence;
+        exptparam.Duration = curObj.Duration;
+        exptparam.BlockDura = curObj.BlockDura;
+    catch
+        exptparam = [];
+    end
+        
     %Do averaging across all movies
-    Integration.doAveragingAcrossMovies(flag,IdxInAll,IdxInAll_1,IdxInAll_2);
+    Integration.doAveragingAcrossMovies(flag,IdxInAll,IdxInAll_1,IdxInAll_2,exptparam);
 
 end
 

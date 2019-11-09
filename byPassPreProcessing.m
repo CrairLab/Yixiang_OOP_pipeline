@@ -1,38 +1,29 @@
 function byPassPreProcessing(id,param)
-%This function bypass pre-processing (assuming it has been done) and use
-%filtered matrix to do further analysis
-%R1 07/11/18 can do renewCC, seed-based correlation, or generate pseudo color
-%movie based on the filtered matrix.
-%R2 07/13/18 Require methods from Integration and Movie classes 
-%R3 10/02/18 Move the renewCC functino to Integration class, compatiable
-%with Integration class R11 or higher
-%R4 10/24/18 Feed in param to be compatiable with R15 movieData class,
-%which allow GPU computing when doing seed-based correlation maps
-%R5 01/21/19 Changed function structure, allow reconstruction of matrix
-%based on previously saved SVD.mat file and rechoose initial dimension when
-%doing reconstruction
-%R6 01/24/19 Changed function structure to optimize running efficiency and
-%readability only compatible with Integration class R16+
-%R7 01/31/19 Changed Ga_TH_A to A_dFoF to be compatible with new
-%Integration class. Only compatible with Integration R19+
-%R8 05/03/19 Modify seed-based correlation procedures. Only compatible with
-%Integration R23 +.
-%R9 06/04/19 Modify seed-based correlation procedures. Only compatible with
-%movieData. Only compatible with movieData R27+
-
-%Inputs:
-%id       determine which function to run
-%(id == 1, renewCC; id == 2, pseudo-clolor movie; id == 3 seed-based corr)
-%
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% This function bypass pre-processing (assuming it has been done) and use
+% filtered matrix to do further analysis: 1. re-calculate connected
+% components. 2. Make pseudo-color movies 3. Seed-based correlation 
+% 4-5 connectivity/dF over F -based K-means analysis
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% All previous record is saved on Github
+% Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
+% Author: yixiang.wang@yale.edu
+% Latest update:
+% R10 09/11/19 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Inputs:
+%   id       determine which analysis to run
+%   parSam    parameters for analysisS
+    
+    %Detect/create file list
     if ~exist('files.txt','file')
         Integration.fileDetector()
     end
     filelist = readtext('files.txt',' ');
     nmov = size(filelist,1);
-    A_all = [];
     
     if ~exist('param','var')
+        param.flag = 0;
         param.spacialFactor = 2;
         param.total_seeds = 500;
         param.GPU_flag = 0;
@@ -53,7 +44,7 @@ function byPassPreProcessing(id,param)
         case 2
         %Make pseudo color movie
             for f = 1:nmov
-                [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                [curLoad,~,filename]  = Integration.readInSingleMatrix('filtered',f);
                 %Chop the matrix to contain only roi
                 ppA_roi = movieData.focusOnroi(curLoad.A_dFoF);
                 %make pseudo color movie
@@ -72,18 +63,26 @@ function byPassPreProcessing(id,param)
             if param.rechooseIniDim == 0           
                 for f = 1:nmov
                     try
-                        [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
                     catch
                         disp(['Movement tag = ' movTag]);
                         disp('Can not read in matrix with this tag, try a new tag...')
-                        movTag = ''
-                        [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        movTag = '';
+                        [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
                     end
-                    A_all = cat(3, A_all, curLoad.A_dFoF);
+                    %If is not a spontaneous trail, do gross dF over F
+                    if param.flag
+                        disp('Do gross dF over F here!')
+                        A_dFoF = movieData.grossDFoverF(curLoad.A_dFoF);
+                    else
+                        A_dFoF = curLoad.A_dFoF;
+                    end
+                    clear curLoad
+                    A_all = cat(3, A_all, A_dFoF);
                 end
             else
                 for f = 1:nmov
-                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('SVD',f);
+                    [curLoad,~,~]  = Integration.readInSingleMatrix('SVD',f);
                     U = curLoad.U;
                     S = curLoad.S;
                     V = curLoad.V;
@@ -101,6 +100,7 @@ function byPassPreProcessing(id,param)
                     disp(' ')
                     %prepare for seed-based correlation analysis
                     A_all = cat(3, A_all, A_dFoF);
+                    clear curLoad
                 end
             end
             movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,0,...
@@ -109,7 +109,7 @@ function byPassPreProcessing(id,param)
         %Do connectivity K-means analysis 
             A_all = [];
             for f = 1:nmov
-                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                    [curLoad,~,~]  = Integration.readInSingleMatrix('filtered',f);
                     A_all = cat(3, A_all, curLoad.A_dFoF);
             end
             curLoad = load('Correlation_Matrix.mat');
@@ -120,7 +120,7 @@ function byPassPreProcessing(id,param)
         case 5
             A_all = [];
             for f = 1:nmov
-                    [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix('filtered',f);
+                    [curLoad,~,~]  = Integration.readInSingleMatrix('filtered',f);
                     A_all = cat(3, A_all, curLoad.A_dFoF);
             end
             save('AllMatrix.mat','A_all','-v7.3')
@@ -131,7 +131,7 @@ function byPassPreProcessing(id,param)
     disp(['Processing done at:' pwd]);
     
     clearvars;  
-end
 
+end
 %%
 

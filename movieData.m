@@ -1,96 +1,13 @@
 classdef movieData
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   movieData stores the input matrix 
-%   It has several static and normal functions to process the matrix.
+% movieData stores the input matrix 
+% It has dozens of static and normal functions to process the matrix.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%R1 11/23/17 fetchAverageImage is a normal function 
-%R2 11/24/17 dfOverFA is no longer a property of class movieData 
-%R2 11/24/17 fetchAverageImage is a static function 
-%R2 11/24/17 More built-in static functions for class movieData 
-%R3 11/24/17 Major change in the way calculating df/f. Now using intra-video
-%df/f. see InsideVideodFOverF and MeanDuringSti F
-%R3 11/24/17 In gaussSmooth function, the zscoring step is commented out 
-%R3 11/24/17 More built_in static functions for class movieData 
-%R3 11/24/17 Rename classname from movie to movieData due to conflict with
-% %matlab default function movie 
-%R3 11/24/17 Remove function MoviedFoverF 
-%R3 11/24/17 Modify tophat function, remove the ROI checking line 
-%R4 11/25/17 Modify tophat function, remove index variable in the function 
-%R5 11/25/17 Modify insideVideodFoverF function by adding 'outputVideo(isnan(outputVideo)) = 0;' 
-%R6 12/01/17 Change function bwthresholding's name to simpleBwThresholding 
-%R6 12/01/17 Add new function bwThresholding 
-%R6 12/01/17 Modify the way to aquire variable nmov in function AverageAcrossMovies 
-%!!!THE PREVIOUS MODIFICATION MAKING THE CLASS COMPATIBLE WITH VERSIONS after
-%audpipe R4 and Integration R2!!!
-%R7 12/01/17 Add grossDFoverF 
-%R7 12/11/17 Complement comments for several important function 
-%R7 01/11/18 Revise the bwThresholding function, add the condition (factor
-%>=0) to stay in the while loop 
-%R8 05/24/18 Conditioning on flag in the class constructor, in order to
-%prevent double-call in the base class. Compatible with Integration R5+/ROI R1+/
-%audPipe R5+ Incorporate wavelength switching. This version is R8 
-%R8 Directly input nmov when using the function AverageAcrossMovies 
-%R9 New bwThresholding function (fixed threshold, defalut = 2 std above mean)
-%Compatiable with Integration R7          
-%R10 06/13/18 New static functions allowing rigid registration and 
-%bleaching correction        
-%R11 06/19/18 SVD deposition (to roi part, faster)
-%R11 07/05/18 new roiSVD function, new grossDFoverF (mean->nanmean)
-%R11 07/07/18 relax decremental factor starting from 1.6 in function bwThresholding_10prctPixels
-%R11 07/11/18 new function makePseudoColorMovie
-%R12 07/13/18 new function SeedBasedCorr and focusOnroi
-%R12 07/14/18 Modify function SeedBasedCorr
-%R12 08/30/18 Modify function SeedBasedCorr
-%R12 08/31/18 Modify function SeedBasedCorr
-%R13 09/15/18 Major improvement of SeedBased Corr, now can automatically
-%generate seeds if there is not manually defined ones. Compatiable with ROI
-%class R3 or higher 
-%R13 09/19/18 Modify function SeedBasedCorr
-%R14 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
-%wrong. Corrected in related functions in both ROI and movieData Class
-%compatible with ROI R4 or higher
-%R15 10/24/18 New function to allow seed based correlation maps generated on GPU
-%Compatiable with byPassPreProcessing R4 or higher
-%R16 12/12/18 New function maxPooling2D to allow maximum pooling
-%R16 12/28/18 Renew the function makePseudoColorMovie by adding zscoring
-%R16 01/03/19 Modify the roiSVD function
-%R17 01/08/19 Add ICA analysis function getICA 
-%R18 01/15/19 modify several functino to allow better parellel computing.
-%Add new function plotCorrM 
-%R18 01/15/19 modify simpleBWThresholding
-%R19 01/20/19 added movementAssess function. 
-%R19 01/20/19 modify the roisvd function. Improve spatialDown function 
-%only compatible with ROI R5+
-%R20 01/24/19 added functions to do k-means clustering and related
-%processing.
-%R21 01/26/19 added function seedsCorrelation. Several minor improvements.
-%Only compatible with Integration R17+ and ROI R6+
-%R22 01/30/19 change movementAssess function (now called movAssess) and 
-%movieRigReg function so that movAssess can output indices for registration
-%Only compatible with Integration R18+
-%R22 02/07/19 Update the movAssess and movieRigReg functions
-%R23 03/03/19 Major updation on movAssess (now both assess and register
-%images). Using norm of transformation vector as indicator of movement.
-%Only compatible with Integration R21+
-%R23 03/05/19 Update the movAssess: don't discard frame, replace it with
-%mean-intensity frame.
-%R24 03/13/19  Update the movAssess. Replace spatio-temporal units that are
-%very active with corresponding median intensities.
-%R25 04/21/19  Update the movAssess. Get rid of neighbouring 5 frames of
-%any identified moving frame. 
-%R26 04/28/19  New functin movAssessUsingEdge. Using edge detection for
-%better moving frame detection. False positive could be high, false
-%negative is relatively low. 
-%R26 05/03/19 Update the SeedBasedCorr_GPU function
-%R27 06/04/19 Major improvement on SeedBasedCorr_GPU function. Now allow
-%timelag correlation or correlation substracting global averaged traces.
-% Use bottom 5% intensity level as F0 for dF over F calculation
-% Use new movement assessment algorithm based on discrete FFT. 
-%R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
-%R28 06/06/19 Improve SeedBasedCorr_GPU function: allow partial correlation
-%Use the averaged trace of lower 5% std pixels as control. 
-%R28 06/20/19 Debug the SeedBasedCor_GPU function
+% All previous record is saved on Github
+% Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
+% Author: yixiang.wang@yale.edu
+% Latest update:
+% R32 09/11/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -269,37 +186,46 @@ classdef movieData
         %}
         
         
-        function MeanFrame = MeanDuringSti(FreqVideo)
+        function MeanFrame = MeanDuringSti(FreqVideo, exptparam)
         
-        %    Calculate the mean of 20th-29th frames in a 40-frame movie.
+        %    Calculate the mean of frames during stimulation.
         %   (during-stimulaton period)
         %    
         %    Inputs:
-        %       FreqVideo     Averaged movie containing 40 frames
+        %       FreqVideo     Averaged movie
+        %       exptparam     experiment parameters from baphy files
         %
         %    Outputs:
-        %       MeanFrame       mean intensities averaged over frames 20-29
-        
-            MeanFrame = mean(FreqVideo(:,:,20:29),3);
+        %       MeanFrame       mean intensities averaged over certain
+        %       period
+            
+            ini_frame = round(exptparam.PreStimSilence) * 10;
+            last_frame = round(exptparam.PreStimSilence + exptparam.Duration*2) * 10;
+            MeanFrame = mean(FreqVideo(:,:,ini_frame+1:last_frame),3);
         end
         
         
         %Intra-trails dF/F
-        function outputVideo = InsideVideodFoverF(curVideo)
+        function outputVideo = InsideVideodFoverF(curVideo, firstFrame)
         
-        %    Calculate the df/f for each frame in a 40-frame video
+        %    Calculate the df/f for each frame in a block video
         %    grouped by either frequencies or frequency/volume
-        %    combination. Take the average of the pre-stimulation 20
+        %    combination. Take the average of the pre-stimulation
         %    frames as background. Using this averaged matrix to
         %    calculate df/f for each frame.
         %
         %    Inputs:
         %        curVideo     currently working video
+        %        firstFrame   first frame when stimulation starts
         %    
         %    Outputs:
         %        outputVideo     df/f video
         
-            meanVideo = mean(curVideo(:,:,1:19),3);
+        if nargin<2
+            firstFrame = 10;
+        end
+        
+            meanVideo = mean(curVideo(:,:,1:firstFrame),3);
             sz= size(curVideo);
             meanVideo = repmat(meanVideo,[1,1,sz(3)]);
             outputVideo = curVideo./meanVideo - 1;
@@ -326,7 +252,6 @@ classdef movieData
          %    Outputs:
          %       Averaged df over f images over frames 20-29
          %       Averaged 40-frame para-stimulation video clips
-         
             
             LoadName = [filename(1:length(filename)-4) '_FramesByFreq.mat'];
             load(LoadName);
@@ -374,7 +299,7 @@ classdef movieData
         
         
         
-        function FreqVoluColorMap(A,filename,nmov)
+        function FreqVoluColorMap(A,filename,nmov,exptparam)
             
         %     This function output the time-color projeciting maps based on frames
         %     sorted by different frequencies and volume combinations. 
@@ -390,8 +315,19 @@ classdef movieData
         %        filename   corresponding filename
         %     
         %     Outputs:
-        %        Averaged df over f images over frames 20-29
-        %        Averaged 40-frame para-stimulation video clips
+        %        Averaged df over f images over frames during stimulation
+        %        Averaged para-stimulation video clips
+
+        if isempty(exptparam)
+            exptparam.PreStimSilence = 1;
+            exptparam.PostStimSilence = 3.5;
+            exptparam.Duration = 0.5;
+            exptparam.BlockDura = 60;
+        end
+                 
+            ini_frame = round(exptparam.PreStimSilence) * 10;
+            last_frame = round(exptparam.PreStimSilence + exptparam.Duration*2) * 10 - 1;
+            BlockDura = exptparam.BlockDura;
         
             LoadName = [filename(1:length(filename)-4) '_FramesByFreqVolu.mat'];
             load(LoadName);
@@ -409,7 +345,7 @@ classdef movieData
                     temp_length = [temp_length size(FramesByFreqVolu{j,i},1)];
                 end
             end
-            MaxFrameLength = ceil(max(temp_length)/40)*40;
+            MaxFrameLength = ceil(max(temp_length)/BlockDura)*BlockDura;
             
             %FreqVoluPic = zeros(sz(1),sz(2));
             FreqVoluVideo = zeros(sz(1),sz(2));
@@ -420,16 +356,16 @@ classdef movieData
                     ThisSignature = temp_Idx(1:2,1);
                     temp_Idx = temp_Idx(3:size(temp_Idx,1),1);
                     temp_Idx = [temp_Idx;zeros(MaxFrameLength - length(temp_Idx),1)];
-                    temp_Idx = reshape(temp_Idx,40,[]);
+                    temp_Idx = reshape(temp_Idx,BlockDura,[]);
 
-                    for k = 1:40
+                    for k = 1:BlockDura
                         temp_Idx_k = temp_Idx(k,:);
                         temp_Idx_k(temp_Idx_k ==  0) = [];
                         NonZero = temp_Idx_k;
                         FreqVoluVideo(:,:,k) = mean(A(:,:,NonZero),3);
                     end
                     
-                    cur_dFoverF = movieData.InsideVideodFoverF(FreqVoluVideo);
+                    cur_dFoverF = movieData.InsideVideodFoverF(FreqVoluVideo, ini_frame);
                     FreqVoluVideo = cur_dFoverF;
                     
                     %FreqVoluPic(:,:,j,i) = movieData.MeanDuringSti(cur_dFoverF);
@@ -474,6 +410,7 @@ classdef movieData
                 nmov = size(filelist,1);
             end
             
+            %If the .mat file existed, load and update
             if exist(current_name,'file')
                 load(current_name);
                 AveragedMatrix = AveragedMatrix + CurrentMatrix./nmov;
@@ -486,15 +423,17 @@ classdef movieData
         end
         
         
-        function AveragedMapsAcrossMovies()
+        function AveragedMapsAcrossMovies(exptparam)
             
             %    Calling this function will read in all
             %    AveragedMatrix_freq_volu.mat data (should be updated with
             %    all movies in advance, see the AverageAcrossMovies
             %    function) and output maps and videos averaged across movies
             %    It should be called at the end of the main pipeline. 
+            %    Input: exptparam from baphy file
             
-
+            BlockDura = exptparam.BlockDura; %Duraion of a single block
+            
             temp_info = dir;
             filelist = {};
             n = 0;
@@ -508,15 +447,15 @@ classdef movieData
             for i = 1:n
                 load(filelist{i,1});
                 filename = filelist{i,1};
-                AveragedMap = movieData.MeanDuringSti(AveragedMatrix);
+                AveragedMap = movieData.MeanDuringSti(AveragedMatrix, exptparam);
                 pictype = mat2gray(squeeze(AveragedMap));
                 [pictypeInd, ~] = gray2ind(pictype,65536);
                 tmp_filename = [filename(1:length(filename)-4) '.png'];
                 imwrite(pictypeInd, tmp_filename);
                 tmp_filename = [filename(1:length(filename)-4) '.avi'];
                 %VideoDFoverF = movieData.InsideVideodFoverF(AveragedMatrix); %modified in R3
-                [~, Iarr] = timeColorMapProj(squeeze(AveragedMatrix),1,40,tmp_filename);
-                Iarr2avi(Iarr,1,40,tmp_filename);
+                [~, Iarr] = timeColorMapProj(squeeze(AveragedMatrix),1,BlockDura,tmp_filename);
+                Iarr2avi(Iarr,1,BlockDura,tmp_filename);
 
             end
 
@@ -1816,7 +1755,7 @@ classdef movieData
            end
                       
            %Create new savenames
-           c = clock;
+           %c = clock;
            %timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
            %nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
            nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' num2str(size(roi,1))];
@@ -1861,6 +1800,51 @@ classdef movieData
                 seedTrace = seedTrace(:, 1 + timelag : duration);
                 imgall = imgall(:, 1 : duration - timelag);
             end
+        end
+        
+        
+        
+        function OutputMovie(A, filename, rate)
+        % Write the input matrix (3D) into a .avi movie
+        % Inputs:
+        %       A          3D matrix
+        %       filename   name of the output movie
+        %       rate       frame rate
+
+            if nargin < 2
+                filename = 'Output';
+            end
+
+            if nargin < 3
+                rate = 50;%default rate 50 frames/sec
+            end
+
+            writerObj = VideoWriter([filename '.avi']);
+            writerObj.FrameRate = rate;
+            % set the seconds per image
+
+            % open the video writer
+            open(writerObj);
+            % write the frames to the video
+
+            parfor i=1:size(A,3)
+                % convert the image to a frame
+                frame = A(:,:,i);
+                figure('visible','off');
+                imshow(mat2gray(frame))
+                frame = getframe;
+                F(i) = frame;
+            end
+
+            for i=1:length(F)
+                % convert the image to a frame
+                frame = F(i);    
+                writeVideo(writerObj, frame);
+            end
+
+            % close the writer object
+            close(writerObj);
+
         end
         
         

@@ -1,22 +1,24 @@
 classdef baphy
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%Baphy is a class that stores inforamtion extracted from the baphy
-%files, which includes arrays of frequencies and volumes.
-%
+% This class stores inforamtion extracted from the baphy files, which 
+% includes arrays of frequencies/volumes, and other experiment parameters.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%R1 12/14/17 Modify the code to tackle the problem when more than 150
-%blocks of stimuli were presebted during experiment. 
-%Add 'length(txt_line) <= 150' to the first while loop in function baphy
-%
-%R2 05/31/18 Lift the previous 150-block constrain due to new baphy
-%configuration, new properties element blockN 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% All previous record is saved on Github
+% Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
+% Author: yixiang.wang@yale.edu
+% Latest update:
+% R4 09/11/19 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
     
     properties
-        txt_line;%text extracted from .m files
+        evt_line;%text extracted from .m files
         freq; %frequency
         volu; %volume 
         blockN; % Number of blocks(trails)
+        PreStimSilence; %Silent period before stimulation onset
+        PostStimSilence %Silent period after stimulation ends
+        Duration % Duration of stimulation
+        BlockDura % Duration of a single block (in frames: default 10Hz)
     end
     
     methods
@@ -28,28 +30,35 @@ classdef baphy
                 %Read in baphy (.m) files
                 fid = fopen(baphyfn);
                 tline = fgetl(fid);
-                txt_line = {};
+                evt_line = {};
                 
-                %Detect key words 'PreStimSilence' and 'Note'
-                while ischar(tline) %&& (length(txt_line) <= 160)
-                    if logical(~isempty(strfind(tline,'PreStimSilence'))) && logical(~isempty(strfind(tline,'Note')))
-                        txt_line = [txt_line;tline];
+                %Detect key words 'PreStimSilence' and 'exptevents'
+                while ischar(tline) %&& (length(evt_line) <= 160)
+                    if logical(contains(tline,'exptevents')) && logical(contains(tline,'PreStimSilence'))
+                        evt_line = [evt_line;tline];                        
+                    elseif logical(contains(tline,'exptparams(1).TrialObject(1)')) && logical(contains(tline,'PreStimSilence')) && ~logical(contains(tline,'UserDefinableFields'))
+                    %Get duration, pre/post-stimulation silence from txt lines
+                        obj.PreStimSilence= baphy.GetExpInfo(tline);
+                    elseif logical(contains(tline,'exptparams(1).TrialObject(1)')) && logical(contains(tline,'PostStimSilence')) && ~logical(contains(tline,'UserDefinableFields'))
+                    %Get duration, pre/post-stimulation silence from txt lines
+                        obj.PostStimSilence= baphy.GetExpInfo(tline);
+                    elseif logical(contains(tline,'exptparams(1).TrialObject(1)')) && logical(contains(tline,'Duration')) && ~logical(contains(tline,'UserDefinableFields'))
+                    %Get duration, pre/post-stimulation silence from txt lines
+                        obj.Duration= baphy.GetExpInfo(tline);       
                     end
                     tline = fgetl(fid);
                 end
                 
-                obj.blockN = length(txt_line);
-                disp([num2str(length(txt_line)) ' blocks detected in baphy']);
+                obj.BlockDura = round(obj.PreStimSilence + obj.PostStimSilence + obj.Duration).* 10;
+                obj.blockN = length(evt_line);
+                disp([num2str(length(evt_line)) ' blocks detected in baphy']);
                 
                 %Get frequencies and volumes info from txt lines
-                obj.txt_line = char(txt_line);
-                [freq,volu] = baphy.GetVoluFreq(obj.txt_line);
+                obj.evt_line = char(evt_line);
+                [freq,volu] = baphy.GetVoluFreq(obj.evt_line);
                 obj.freq = freq;
                 obj.volu = volu;
-
-                %savename = [filename(1:length(filename)-4) '_BaphyIndex.mat'];
-                %save(savename,'freq','volu');
-
+                
                 fclose(fid);
             catch
                 disp('Baphy files not provided');
@@ -70,18 +79,30 @@ classdef baphy
 
     methods(Static)
         
-        function [freq,volu] = GetVoluFreq(txt_line)
+        function [freq,volu] = GetVoluFreq(evt_line)
         %Extract frequency and volume values from txt lines
-          
-            ntrial = size(txt_line,1);
+            ntrial = size(evt_line,1);
 
             for i = 1:ntrial
-                mk1 = strfind(txt_line(i,:),',');
-                mk2 = strfind(txt_line(i,:),':');
-                freq(i,1) = str2double(txt_line(i,mk1(1)+2:mk2-1));
-                volu(i,1) = str2double(txt_line(i,mk2+1:mk2+2));
+                %Extract current line
+                cur_line = evt_line(i,:);
+                mk1 = strfind(cur_line,',');
+                mk2 = strfind(cur_line,':');
+                mk3 = strfind(cur_line,'dB');
+                freq(i,1) = str2double(evt_line(i,mk1(1)+2:mk2-1));
+                volu(i,1) = str2double(evt_line(i,mk2+1:mk3-1));
             end
         end
+        
+        
+        function info = GetExpInfo(tline)
+        %Extract experiment infomation from txt lines
+            mk1 = strfind(tline, '=');
+            mk2 = strfind(tline, ';');
+            info = str2double(tline(mk1+2:mk2-1));           
+        end
+        
+        
     end
     
 end
