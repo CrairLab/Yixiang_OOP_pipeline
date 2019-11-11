@@ -9,7 +9,7 @@ function byPassPreProcessing(id,param)
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R10 09/11/19 
+% R11 10/11/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Inputs:
 %   id       determine which analysis to run
@@ -44,7 +44,18 @@ function byPassPreProcessing(id,param)
         case 2
         %Make pseudo color movie
             for f = 1:nmov
-                [curLoad,~,filename]  = Integration.readInSingleMatrix('filtered',f);
+                try
+                    [curLoad,~,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                    if isempty(curLoad)
+                        disp(['Movement tag = ' movTag]);
+                        disp('Can not read in matrix with this tag, try a new tag...')
+                        movTag = '';
+                        [curLoad,~,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                    end
+                catch
+                    warning('Unable to read in filtered matrix!')
+                end
+                
                 %Chop the matrix to contain only roi
                 ppA_roi = movieData.focusOnroi(curLoad.A_dFoF);
                 %make pseudo color movie
@@ -64,11 +75,14 @@ function byPassPreProcessing(id,param)
                 for f = 1:nmov
                     try
                         [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        if isempty(curLoad)
+                            disp(['Movement tag = ' movTag]);
+                            disp('Can not read in matrix with this tag, try a new tag...')
+                            movTag = '';
+                            [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        end
                     catch
-                        disp(['Movement tag = ' movTag]);
-                        disp('Can not read in matrix with this tag, try a new tag...')
-                        movTag = '';
-                        [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        warning('Unable to read in filtered matrix!')
                     end
                     %If is not a spontaneous trail, do gross dF over F
                     if param.flag
