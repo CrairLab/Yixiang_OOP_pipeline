@@ -65,20 +65,16 @@ function byPassPreProcessing(id,param)
         case 3
         %Do Seed-based correlation 
             A_all = [];
-            if param.moveAssessFlag
-                movTag = 'dsc';
-            else 
-                movTag = '';
-            end             
-            
             if param.rechooseIniDim == 0           
                 for f = 1:nmov
                     try
+                        movTag = 'dsc';
                         [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
                         if isempty(curLoad)
                             disp(['Movement tag = ' movTag]);
                             disp('Can not read in matrix with this tag, try a new tag...')
                             movTag = '';
+                            dsip(['Movemetn tag = ' movTag]);
                             [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
                         end
                     catch
