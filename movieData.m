@@ -1159,7 +1159,11 @@ classdef movieData
                     maskId = roi(r,:);
                     x1 = ceil(maskId(1)/size(cur_img,1));
                     y1 = maskId(1) - floor(maskId(1)/size(cur_img,1))*size(cur_img,1);
-                    fill([x1,x1,x1+2,x1+2],[y1,y1+2,y1+2,y1], 'y')
+                    try
+                        fill([x1-2,x1-2,x1+2,x1+2],[y1-2,y1+2,y1+2,y1-2], 'y')
+                    catch
+                        disp('Index exceed matrix limit')
+                    end
                 end
 
                 %Save the plot
