@@ -8,7 +8,7 @@ classdef spike2
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R5 09/11/19 
+% R6 12/06/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     properties
@@ -68,7 +68,7 @@ classdef spike2
                     disp('')
                     disp('Bypassing the issue.Generating Dummy Index Trains...')
                     disp('')
-                    [obj.Idx_baphstar,obj.Idx_framesEy] = spike2.DummyTrains(blockN);
+                    [obj.Idx_baphstar,obj.Idx_framesEy] = spike2.DummyTrains(blockN,BlockDura);
                 end
 
             catch ME
@@ -76,7 +76,7 @@ classdef spike2
                     disp('')
                     disp('As no spike2 is provided, generating Dummy Index Trains...')
                     disp('')
-                    [obj.Idx_baphstar,obj.Idx_framesEy] = spike2.DummyTrains(blockN);
+                    [obj.Idx_baphstar,obj.Idx_framesEy] = spike2.DummyTrains(blockN,BlockDura);
                 end
                 disp('Spike2 files not provided');
             end

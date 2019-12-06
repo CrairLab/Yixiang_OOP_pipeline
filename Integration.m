@@ -8,7 +8,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R29 09/11/19 
+% R30 12/06/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     properties
@@ -86,7 +86,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             outputFolder = fullfile(currentFolder,obj.outputFolder); 
             mkdir(outputFolder);                    
             
-            if obj.flag && isempty(obj.smallMask)
+            if obj.flag 
             %Try to do frame-frequency alignment if flag == 1;
             %For spontaneous cases this step will be skipped.
             %If smallMask property existed, instance.mat file must had
@@ -345,15 +345,45 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %       
          
                                
-            filename = obj.filename;
+            filename = obj.filename;                        
             Idx_baphstar = obj.Idx_baphstar;
             Idx_framesEy = obj.Idx_framesEy;
             savename = [filename(1:length(filename)-4),'_Spike2BaphyIndex.mat'];
+            
+            %Reconstruct baphy and spike2 properties if not defined
+            if isempty(Idx_baphstar) || isempty(Idx_framesEy)
+                
+                    %Find corresponding filenames
+                    outputFolder = obj.outputFolder;            
+                    f = str2double(outputFolder(7:end));
+                    Spike2filelist = readtext('Spike2files.txt','\n');
+                    Spike2name = Spike2filelist{f};
+                    baphyfilelist = readtext('baphyfiles.txt','\n');
+                    Baphyname = baphyfilelist{f};
+                
+                    %To get blcokN for spike2 object construction
+                    baphyObj = baphy(Baphyname);          
+                    %Construct spike2 class
+                    spike2Obj = spike2(Spike2name,baphyObj);
+                    obj.Idx_baphstar = spike2Obj.Idx_baphstar;
+                    obj.Idx_framesEy = spike2Obj.Idx_framesEy;
+                    obj.BlockDura = baphyObj.BlockDura;
+                    obj.evt_line = baphyObj.evt_line;
+                    Idx_baphstar = obj.Idx_baphstar;
+                    Idx_framesEy = obj.Idx_framesEy;
+            end
           
             %Handle imperfect recording, preserve good trails
             BlockDura = obj.BlockDura; %Duration of a single block
-            ActualTrailNumber = min([size(Idx_baphstar,2),size(obj.evt_line,1),floor(size(obj.A,3)/BlockDura)]);
-            disp(['[Baphstar,evt_line,A_size3]= ' num2str([size(Idx_baphstar,2),size(obj.evt_line,1),floor(size(obj.A,3)/BlockDura)])])
+            
+            if length(size(obj.A)) == 2
+                frameN = size(obj.A,2);
+            else
+                frameN = size(obj.A,3);
+            end
+            
+            ActualTrailNumber = min([size(Idx_baphstar,2),size(obj.evt_line,1),floor(frameN/BlockDura)]);
+            disp(['[Baphstar,evt_line,A_size3]= ' num2str([size(Idx_baphstar,2),size(obj.evt_line,1),floor(frameN/BlockDura)])])
             disp(['Usable Trails = ' num2str(ActualTrailNumber)]);
             evt_line = obj.evt_line(1:ActualTrailNumber,:);
             [freq,volu] = Integration.GetVoluFreq(evt_line);
