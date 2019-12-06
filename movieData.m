@@ -7,7 +7,7 @@ classdef movieData
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R32 09/11/19 
+% R33 12/05/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1390,6 +1390,7 @@ classdef movieData
         %
         %   Inputs:
         %     A                   3D matrix
+        %     loadftag            tag for loading specific .mat file  
         %
         %   Outputs:
         %     A                   Registered matrix
@@ -1399,11 +1400,7 @@ classdef movieData
         %     movIdx_saved        Indices of matrix that will be saved
           
         
-            %In default, do not discard frames
-            flag = 0;
-            
-            sz = size(A);
-            
+
             %Do dftregistration
             if nargin < 2
                 %Whether provided loadtag or not
@@ -1413,7 +1410,27 @@ classdef movieData
             end
                 
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
+                   
+            %if flag == 1 replace moving frames with mean-intensity frame
+            %if flag == 1 discard the neighbouring 5 frames
+            %A_mean = reshape(A_mean,[sz(1) sz(2)]);
+            A_ori = A;
+            [A, movIdx_saved, ~] = movieData.discardFrames(A, NormTform_all);
 
+            disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
+
+
+        end
+        
+      
+        
+        
+        function [A, movIdx_saved, saveRatio] = discardFrames(A, NormTform_all)
+        %Discard frames in the input movie A based on NormTform_all
+        
+        flag = 0; %default flag: do not discard frames
+        sz = size(A);
+        if length(NormTform_all) == sz(3)
             %If the norm is larger than 0.49 (0.5 pixel at either direction)
             %label as large-movement frame. Save frames that do not
             %move that much as movIdx_saved
@@ -1440,11 +1457,7 @@ classdef movieData
                 disp('Turn on discarding processing...')
                 flag = 1;
             end
-                   
-            %if flag == 1 replace moving frames with mean-intensity frame
-            %if flag == 1 discard the neighbouring 5 frames
-            %A_mean = reshape(A_mean,[sz(1) sz(2)]);
-            A_ori = A;
+            
             if flag
                 warning('Discarding moving frames here...')
                 movIdx_replace =  ~movIdx_saved;
@@ -1453,11 +1466,16 @@ classdef movieData
                 %A(:,:,movIdx_replace) = repmat(A_mean, [1,1,sum(movIdx_replace)]);
                 A(:,:,movIdx_replace) = [];
                 movIdx_saved = ~movIdx_replace;
-            end            
-
-            disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
+            end   
+            
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
-
+            
+        else
+            waring('Movie size does not agree with movAsess file!')
+            saveRatio = 1;
+            movIdx_saved = NormTform_all > -1;
+        end
+     
         end
                 
         

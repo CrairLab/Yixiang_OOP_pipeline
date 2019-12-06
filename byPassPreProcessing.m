@@ -9,25 +9,29 @@ function byPassPreProcessing(id,param)
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R11 10/11/19 
+% R12 12/05/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Inputs:
 %   id       determine which analysis to run
 %   parSam    parameters for analysisS
     
     %Detect/create file list
-    if ~exist('files.txt','file')
+    if isempty(dir(('files.txt')))
         Integration.fileDetector()
     end
     filelist = readtext('files.txt',' ');
     nmov = size(filelist,1);
     
     if ~exist('param','var')
-        param.flag = 0;
-        param.spacialFactor = 2;
-        param.total_seeds = 500;
-        param.GPU_flag = 0;
-        param.rechooseIniDim = 1;
+        if isempty(dir(('parameter.mat')))
+            param.flag = 0;
+            param.spacialFactor = 2;
+            param.total_seeds = 500;
+            param.GPU_flag = 0;
+            param.rechooseIniDim = 1;
+        else
+            load('parameter.mat')
+        end
     end
     
     switch id
@@ -70,22 +74,42 @@ function byPassPreProcessing(id,param)
                     try
                         movTag = 'dsc';
                         [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                        %Detect if there is filtered matrix with discarding process 
                         if isempty(curLoad)
+                            %If not, try to detect filtered matrix wo discarding process
                             disp(['Movement tag = ' movTag]);
-                            disp('Can not read in matrix with this tag, try a new tag...')
+                            disp('Can not detect matrix with this tag, try a new tag...')
                             movTag = '';
-                            dsip(['Movemetn tag = ' movTag]);
-                            [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
-                        end
+                            disp(['Movemetn tag = ' movTag]);
+                            [curLoad,outputFolder,filename]  = Integration.readInSingleMatrix(['filtered' movTag], f);
+                            
+                            if isempty(curLoad)
+                                disp('Unable to detect pre-processed matrix!')
+                            else
+                                disp('Detect filtered matrix without discarding.')
+                                disp('For seed-based correlation, apply frame discarding!')
+                                %If detected filtered matrix wo discarding process, do frames discarding here
+                                [moveAssessLoad,~,~]  = Integration.readInSingleMatrix('moveAssess', f);
+                                if isempty(moveAssessLoad)
+                                    disp('Unable to detect movAssess file!')
+                                else
+                                    [A_dFoF,~,~] = movieData.discardFrames(curLoad.A_dFoF, moveAssessLoad.NormTform_all);
+                                    curLoad.A_dFoF = A_dFoF;
+                                    checkname = [filename(1:length(filename)-4) '_filtereddsc.mat'];
+                                    %save the frame-discarded filtered matrix
+                                    save(fullfile(outputFolder,checkname), 'A_dFoF', '-v7.3')
+                                end
+                            end
+                        end                     
                     catch
-                        warning('Unable to read in filtered matrix!')
+                        warning('Unable to read in pre-processed matrix!')
                     end
+                    
+                    A_dFoF = curLoad.A_dFoF;
                     %If is not a spontaneous trail, do gross dF over F
                     if param.flag
                         disp('Do gross dF over F here!')
-                        A_dFoF = movieData.grossDFoverF(curLoad.A_dFoF);
-                    else
-                        A_dFoF = curLoad.A_dFoF;
+                        A_dFoF = movieData.grossDFoverF(A_dFoF);                       
                     end
                     clear curLoad
                     A_all = cat(3, A_all, A_dFoF);
@@ -108,6 +132,17 @@ function byPassPreProcessing(id,param)
                     A_dFoF = Integration.GauSmoo(A_z,1); %set sigma = 1
                     disp('Gaussian smoothing is done');
                     disp(' ')
+                    %If detected filtered matrix wo discarding process, do frames discarding here
+                    [moveAssessLoad,outputFolder,filename]  = Integration.readInSingleMatrix('moveAssess', f);
+                    if isempty(moveAssessLoad)
+                        disp('Unable to detect movAssess file!')
+                    else
+                        [A_dFoF,~,~] = movieData.discardFrames(A_dFoF, moveAssessLoad.NormTform_all);
+                        checkname = [filename(1:length(filename)-4) '_filtereddsc.mat'];
+                        %save the frame-discarded filtered matrix
+                        save(fullfile(outputFolder,checkname), 'A_dFoF', '-v7.3')
+                    end
+                  
                     %prepare for seed-based correlation analysis
                     A_all = cat(3, A_all, A_dFoF);
                     clear curLoad
