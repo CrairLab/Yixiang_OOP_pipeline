@@ -94,10 +94,12 @@ function byPassPreProcessing(id,param)
                                     disp('Unable to detect movAssess file!')
                                 else
                                     [A_dFoF,~,~] = movieData.discardFrames(curLoad.A_dFoF, moveAssessLoad.NormTform_all);
-                                    curLoad.A_dFoF = A_dFoF;
-                                    checkname = [filename(1:length(filename)-4) '_filtereddsc.mat'];
-                                    %save the frame-discarded filtered matrix
-                                    save(fullfile(outputFolder,checkname), 'A_dFoF', '-v7.3')
+                                    if size(A_dFoF,3) ~= size(curLoad.A_dFoF,3) 
+                                        curLoad.A_dFoF = A_dFoF;
+                                        checkname = [filename(1:length(filename)-4) '_filtereddsc.mat'];
+                                        %save the frame-discarded filtered matrix
+                                        save(fullfile(outputFolder,checkname), 'A_dFoF', '-v7.3')
+                                    end
                                 end
                             end
                         end                     
