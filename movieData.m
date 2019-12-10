@@ -328,7 +328,7 @@ classdef movieData
             ini_frame = round(exptparam.PreStimSilence) * 10;
             last_frame = round(exptparam.PreStimSilence + exptparam.Duration*2) * 10 - 1;
             BlockDura = exptparam.BlockDura;
-        
+       
             LoadName = [filename(1:length(filename)-4) '_FramesByFreqVolu.mat'];
             load(LoadName);
             FreqNumber = size(FramesByFreqVolu,2);

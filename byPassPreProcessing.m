@@ -107,14 +107,20 @@ function byPassPreProcessing(id,param)
                         warning('Unable to read in pre-processed matrix!')
                     end
                     
-                    A_dFoF = curLoad.A_dFoF;
-                    %If is not a spontaneous trail, do gross dF over F
-                    if param.flag
-                        disp('Do gross dF over F here!')
-                        A_dFoF = movieData.grossDFoverF(A_dFoF);                       
+                    try
+                        A_dFoF = curLoad.A_dFoF;
+                        %If is not a spontaneous trail, do gross dF over F
+                        if param.flag
+                            disp('Do gross dF over F here!')
+                            A_dFoF = movieData.grossDFoverF(A_dFoF);                       
+                        end
+                        clear curLoad
+                        A_all = cat(3, A_all, A_dFoF);
+                    catch
+                        disp('Unable to read A_dFoF!')
+                        disp('')
                     end
-                    clear curLoad
-                    A_all = cat(3, A_all, A_dFoF);
+
                 end
             else
                 for f = 1:nmov
