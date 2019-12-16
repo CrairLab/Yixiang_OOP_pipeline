@@ -410,6 +410,9 @@ classdef movieData
                 nmov = size(filelist,1);
             end
             
+            %Reasign 0 values to nan
+            CurrentMatrix(CurrentMatrix == 0) = nan;
+            
             %If the .mat file existed, load and update
             if exist(current_name,'file')
                 load(current_name);
@@ -447,6 +450,7 @@ classdef movieData
             for i = 1:n
                 load(filelist{i,1});
                 filename = filelist{i,1};
+                AveragedMatrix(isnan(AveragedMatrix)) = 0;
                 AveragedMap = movieData.MeanDuringSti(AveragedMatrix, exptparam);
                 pictype = mat2gray(squeeze(AveragedMap));
                 [pictypeInd, ~] = gray2ind(pictype,65536);
