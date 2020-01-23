@@ -7,7 +7,7 @@ classdef movieData
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R33 12/05/19 
+% R33 01/23/19 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -889,6 +889,14 @@ classdef movieData
             %U = reshape(U,[sz(1), sz(2), size(U,2)]);
             V = reshape(V,[sz(1), sz(2), size(V,2)]);
             %save('SVD_decomp.mat','U','S','V');
+            
+            % Calculate the propotion of variance explained by each PCs
+            eigs = diag(S).^2;
+            Sum_var = sum(diag(A_roi'*A_roi));
+            PC_exp = eigs./Sum_var;
+            
+            save('Var_explained_by_PCs.mat', 'PC_exp');
+            
             disp('');
 
         end
