@@ -110,7 +110,7 @@ classdef ROI
        end
        
        
-       function [subs,Mask] = ROIMask(ROIData,sz)
+       function [subs,Mask] = ROIMask(ROIData,sz,default_sz)
        
        %    Get 2D ROI mask from ROIData. If there are more than 1 ROI,
        %    merge the ROIs to a single mask. ROI is considered a polycon
@@ -118,21 +118,28 @@ classdef ROI
        %    
        %    Inputs:
        %        ROIData     Cell array containing ROI structures
-       %        sz          Matrix(frame) size (2D)
+       %        sz          Matrix size (2D)
+       %        default_sz  Frame size (2D)
        %    
        %    Ouputs:
        %         index      Indices of the vertices of polycons
        %         Mask       2D mask that contains all ROIs
           
        
-           if nargin == 1
-               sz(1) = 540;
-               sz(2) = 640;
+           if nargin < 2
+               sz = [540 640];
+           elseif nargin < 3
+               default_sz = [540 640];
+           end
+           
+           %Assuming when both dims>=500, sz == frame size.
+           if sum(sz>=500) == 2
+               default_sz = sz;
            end
            
            if ~isempty(ROIData)
                %Default size of the image
-               default_sz = [540,640];
+               %default_sz = [540,640];
                Mask = zeros(default_sz);
                for i = 1:length(ROIData)
                    try
