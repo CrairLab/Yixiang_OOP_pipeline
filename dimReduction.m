@@ -340,8 +340,8 @@ classdef dimReduction
             F_values = [];   %F measure
             sumSQE = [];     %Normalized intra-cluster error
             
-            iniK = 2;        %# of clusters starts from 2
-            endK = 30;       %# of clusters should not exceed 30
+            iniK = 11;        %# of clusters starts from 2
+            endK = 70;       %# of clusters should not exceed 30
             Kmeans_idx_all = cell(endK,1);
             Kmeans_C_all = cell(endK,1);
             Kmeans_sumd_all = cell(endK,1);
