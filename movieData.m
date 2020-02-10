@@ -7,7 +7,7 @@ classdef movieData
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R33 01/23/19 
+% R34 02/10/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -967,7 +967,7 @@ classdef movieData
 
         
         function corrMatrix = SeedBasedCorr_GPU(A,spatialFactor,...
-                total_seeds,GPU_flag,plot_flag,mean_flag,timelag)
+                total_seeds,GPU_flag,plot_flag,mean_flag, Avg_out_all, timelag)
         % Generate seed-based correlation maps based on seeds and filtered matrix
         % Read in seeds(rois) from 'Seeds.zip'. If manually defined seeds
         % are not available, try to automatically generate seeds that evenly
@@ -981,6 +981,7 @@ classdef movieData
         %   GPU_flag         whether run on GPU
         %   plot_flag        whether plot the correlation maps or not
         %   mean_flag        whether regress out background correlation (1 yes)
+        %   Avg_out_all      background trace
         %   timelag          number of frames for time-lag correlation.
         %                    Can be positive or negative.
         %   
@@ -1007,6 +1008,10 @@ classdef movieData
             
             if ~exist('mean_flag','var')
                 mean_flag = 0;
+            end
+            
+            if ~exist('Avg_out_all','var')
+                Avg_out_all = [];
             end
             
             if ~exist('timelag','var')
@@ -1089,7 +1094,7 @@ classdef movieData
 
             %Generate correlation matrix
             [corrMatrix, roi] = movieData.generateCorrMatrix(sz, roi, seedTrace,...
-                imgall, GPU_flag, mean_flag, timelag);
+                imgall, GPU_flag, mean_flag, Avg_out_all, timelag);
             
             if plot_flag
                 if sflag == 1
@@ -1483,7 +1488,7 @@ classdef movieData
             disp(['Relatively stable frames ratio = ' num2str(saveRatio)]);
             
         else
-            waring('Movie size does not agree with movAsess file!')
+            warning('Movie size does not agree with movAsess file!')
             saveRatio = 1;
             movIdx_saved = NormTform_all > -1;
         end
@@ -1754,21 +1759,39 @@ classdef movieData
         end
         
         
-        function [corrMatrix, roi] = generateCorrMatrix(sz, roi, seedTrace, imgall, GPU_flag, mean_flag, timelag)
+        function [corrMatrix, roi] = generateCorrMatrix(sz, roi, ...
+                seedTrace, imgall, GPU_flag, mean_flag, Avg_out_all, timelag)
         %Generate correlation matrix using parameters specified by user
+        %Inputs:
+        %   sz          size of the matrix
+        %   roi         roi defined by the user
+        %   seedTrace   trace of the seed
+        %   imgall      all pixels reshaped in 2D
+        %   GPU_flag    whether use GPU for computing
+        %   mean_flag   whether regress out background
+        %   Avg_out_all background trace (if not provided put [])
+        %   timelag     for timelag analysis
+        %
             
            %Truncate traces using timelag
            [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
             
            %Control on mean-activity-trace (lower 5% std) using partial correlation if mean_flag == 1
            if mean_flag
-               std_all = nanstd(imgall,0,2);
-               lowPixels = std_all <= prctile(std_all,5);
-               %avg_trace = nanmean(imgall,1);
-               avg_trace = nanmean(imgall(lowPixels,:),1);
-               corrM = partialcorr(imgall',seedTrace', avg_trace');
-               [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
                disp('Doing partial correlation on CPU...')
+               if isempty(Avg_out_all)
+                   disp('Background trace not provided!')
+                   disp('Define background trace as mean of the lowest 5% std pixels!')
+                   std_all = nanstd(imgall,0,2);
+                   lowPixels = std_all <= prctile(std_all,5);
+                   %avg_trace = nanmean(imgall,1);
+                   avg_trace = nanmean(imgall(lowPixels,:),1);
+                   corrM = partialcorr(imgall',seedTrace', avg_trace');
+               else
+                   corrM = partialcorr(imgall',seedTrace', Avg_out_all);
+                   disp('Generated correlation matrix with provided background trace!')
+               end
+               [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);               
            else
                %Use GPU if GPU_flag == 1
                if GPU_flag
@@ -1792,7 +1815,13 @@ classdef movieData
            %c = clock;
            %timetag = [num2str(c(1)) num2str(c(2)) num2str(c(3)) num2str(c(4)) num2str(c(5))];
            %nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' timetag];
-           nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' num2str(size(roi,1))];
+           if mean_flag && ~isempty(Avg_out_all)
+               extra_tag = '_withAvgOut';
+           else
+               extra_tag = '';
+           end
+           
+           nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' num2str(size(roi,1))  extra_tag];
            savename1 = ['Correlation_Matrix_' nametag '.mat'];
            savename2 = ['Seeds_' nametag '.mat'];
  

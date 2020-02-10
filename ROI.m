@@ -5,30 +5,13 @@ classdef ROI
 %and apply the masks to movies.
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%R1 05/25/18 
-%R2 06/06/18 Detect .roi or .zip files automatically compatiable with 
-%integration R7   
-%R2 07/11/18 New function generateROIArray (for seed-based corr analysis)
-%R3 09/15/18 New function genSeedsMap and genSeedingROIs (for automatically
-%generating seeds for seed-based corr analysis) Compatiable with movieData
-%class R13 or higher
-%R4 09/19/18 Previous algo to calculate coordinates of downsampled seeds is
-%wrong. Corrected in related functions in both ROI and movieData Class
-%compatible with movieData R14 or higher 
-%R4 09/30/18 Modify the genSeedingROIs function to allow seeds sampling in 
-%sub region using input roi file named 'SubRegions.zip'
-%R4 10/01/18 Tackle the situation where num_rois is already smaller than 
-%total_seeds from the very beginning in function genSeedingROIs
-%R4 10/15/18 Improve the ApplyMask function
-%R4 01/18/19 Modify the ROIMask function
-%R5 01/21/19 Modify the genSeedingROIs function. Only compatible with
-%movieData R19+
-%R5 01/23/19 Improve ROIMask function
-%R5 01/24/19 Improve ROIMask function
-%R6 01/26/19 Add function makeSizeConform. Modify several functions to allow
-%automatic size conformation (mask size and matrix size). Only compatible
-%with movieData R21+ and Integration R 17+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% All previous record is saved on Github
+% Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
+% Author: yixiang.wang@yale.edu
+% Latest update:
+% R7 02/06/20 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     
    properties

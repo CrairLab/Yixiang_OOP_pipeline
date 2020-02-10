@@ -9,7 +9,7 @@ function byPassPreProcessing(id,param)
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R12 12/05/19 
+% R13 02/10/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Inputs:
 %   id       determine which analysis to run
@@ -69,12 +69,20 @@ function byPassPreProcessing(id,param)
         case 3
         %Do Seed-based correlation 
             A_all = [];
-            if param.rechooseIniDim == 0           
+            Avg_out_all = [];
+            if param.rechooseIniDim == 0  %Loading directly from filtered.mat         
                 for f = 1:nmov
                     try
                         movTag = 'dsc';
+                        %Detect if there is a filtered matrix with discarding process
                         [curLoad,~,~]  = Integration.readInSingleMatrix(['filtered' movTag], f);
-                        %Detect if there is filtered matrix with discarding process 
+                        
+                        %Detect if there exists info of background dFoF 
+                        Avg_out_dFoF = Integration.GenerateOutsideAverageFromScratch(f);
+                        if isempty(Avg_out_dFoF)
+                            warning('Can not detect/generate of background averaged trace!')
+                        end                        
+                        
                         if isempty(curLoad)
                             %If not, try to detect filtered matrix wo discarding process
                             disp(['Movement tag = ' movTag]);
@@ -116,13 +124,14 @@ function byPassPreProcessing(id,param)
                         end
                         clear curLoad
                         A_all = cat(3, A_all, A_dFoF);
+                        Avg_out_all = cat(3, Avg_out_all, Avg_out_dFoF);
                     catch
                         disp('Unable to read A_dFoF!')
                         disp('')
                     end
 
                 end
-            else
+            else  %Reconstruct from SVD components
                 for f = 1:nmov
                     [curLoad,~,~]  = Integration.readInSingleMatrix('SVD',f);
                     U = curLoad.U;
@@ -153,11 +162,21 @@ function byPassPreProcessing(id,param)
                   
                     %prepare for seed-based correlation analysis
                     A_all = cat(3, A_all, A_dFoF);
+                    Avg_out_all = [];
                     clear curLoad
                 end
             end
+            
+            %See if length of background trace is consistent with the movie
+            if size(Avg_out_all,3) ~= size(A_all)
+                warning('Movie length and background trace length do not agree!')
+                Avg_out_all = [];
+            else
+                Avg_out_all = Avg_out_all(:);
+            end
+            
             movieData.SeedBasedCorr_GPU(A_all,param.spacialFactor,param.total_seeds,param.GPU_flag,0,...
-            param.mean_flag, param.timelag);
+            param.mean_flag, Avg_out_all, param.timelag);
         case 4
         %Do connectivity K-means analysis 
             A_all = [];

@@ -8,7 +8,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R30 12/06/19 
+% R31 02/10/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     properties
@@ -201,7 +201,20 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     A_ROI = Integration.ApplyMask(A_registered,obj.ROIData);
                     disp('Successfully apply ROI')
                     clear A_corrct
-                    clear A_registered
+                    
+                    %Get averaged dF/F outside of the ROI
+                    A_out = A_registered .* (A_ROI == 0);
+                    A_out(A_out == 0) = nan;
+                    Avg_out = nanmean(A_out,1);
+                    Avg_out = nanmean(Avg_out,2);
+                    Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
+                    if any(isnan(Avg_out_dFoF))
+                        Avg_out_dFoF = [];
+                        disp('Background not defined! Check if .roi file is provided!')
+                    end
+                    checkname = [filename(1:length(filename)-4) '_out_dFoF.mat'];
+                    save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
+                    clear A_registered Avg_out_dFoF
 
                     %Focusing on just the ROI part of the movie
                     A_ROI = movieData.focusOnroi(A_ROI);
@@ -1043,5 +1056,66 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             end
         end
         
+        
+        
+        function Avg_out_dFoF = GenerateOutsideAverageFromScratch(f)
+        %Detect or generate background trace (averaged trace of pixels
+        %outside of given roi) from scratch
+        %Inputs:
+        %     f    handles(number) of .tif file
+        %Outputs:
+        %     Avg_out_dFoF    averaged trace of pixels outside of given roi
+        
+            try
+                [out_dFoF,outputFolder,filename]  = Integration.readInSingleMatrix('out_dFoF', f);
+                disp(['Current folder: ' outputFolder])
+                checkname = [filename(1:length(filename)-4) '_out_dFoF.mat'];
+                if isempty(out_dFoF)
+                    %Read the movie 
+                    curA = movieData.inputMovie(filename);
+                    %Photobleaching
+                    A_corrct = Integration.bleachCorrection(curA);
+                    %Gaussian smoothing
+                    A_smoothed = Integration.GauSmoo(A_corrct,1);
+                    sz = size(curA);
+                    %Get ROI
+                    ROIobj = ROI(); ROIData = ROIobj.ROIData;
+                    x = ROIData.mnCoordinates(:,1);
+                    y = ROIData.mnCoordinates(:,2);
+                    %Generate mask for pixels outside the ROI
+                    BW = poly2mask(x,y,sz(1),sz(2)); BW_out = ~BW;
+                    BW_out = repmat(BW_out, [1,1,sz(3)]);
+                    A_out = A_smoothed .* BW_out;
+                    A_out(A_out == 0) = nan;
+                    %Get the averaged trace outside the ROI
+                    Avg_out = nanmean(A_out,1);
+                    Avg_out = nanmean(Avg_out,2);
+                    Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
+                    %Save the result
+                    save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
+                else
+                    Avg_out_dFoF = out_dFoF.Avg_out_dFoF;
+                    disp('Detected and loaded background trace!')
+                end
+                
+                [moveAssessLoad,~,~]  = Integration.readInSingleMatrix('moveAssess', f);
+                if isempty(moveAssessLoad)
+                    [moveAssessLoad,~,~]  = Integration.readInSingleMatrix('moveAssessdsc', f);
+                    if isempty(moveAssessLoad)
+                        disp('Unable to detect movAssess file!')
+                    else
+                        [Avg_out_dFoF,~,~] = movieData.discardFrames(Avg_out_dFoF, moveAssessLoad.NormTform_all);
+                        save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
+                    end
+                else
+                        [Avg_out_dFoF,~,~] = movieData.discardFrames(Avg_out_dFoF, moveAssessLoad.NormTform_all);
+                        save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
+                end
+                
+            catch
+                warning('Something wrong read in/generate the background trace!')
+                Avg_out_dFoF = [];
+            end
+        end
     end
 end
