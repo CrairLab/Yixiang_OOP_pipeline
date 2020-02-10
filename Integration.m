@@ -278,7 +278,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     iniDim = 1; param.iniDim = iniDim;
                 end
                 %iniDim = iniDim + iniDimFlag;
-                [de_A,U,S,V,iniDim] = Integration.roiSVD(TH_A, iniDim);
+                [de_A,U,S,V,iniDim,PC_exp] = Integration.roiSVD(TH_A, iniDim);
                 %Reaply downsampled roi mask
                 if ~exist('ds_Mask','var')
                     ds_Mask = obj.smallMask;
@@ -287,7 +287,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 de_A = de_A.*ds_Mask;
                 de_A(de_A == 0) = nan;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
-                save(fullfile(outputFolder,checkname),'U','S','V','param','iniDim');
+                save(fullfile(outputFolder,checkname),'U','S','V','PC_exp'...
+                    ,'param','iniDim');
                 disp('SVD denosing is done')
                 disp('')
                 clear TH_A
@@ -1080,17 +1081,22 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     sz = size(curA);
                     %Get ROI
                     ROIobj = ROI(); ROIData = ROIobj.ROIData;
-                    x = ROIData.mnCoordinates(:,1);
-                    y = ROIData.mnCoordinates(:,2);
-                    %Generate mask for pixels outside the ROI
-                    BW = poly2mask(x,y,sz(1),sz(2)); BW_out = ~BW;
-                    BW_out = repmat(BW_out, [1,1,sz(3)]);
-                    A_out = A_smoothed .* BW_out;
-                    A_out(A_out == 0) = nan;
-                    %Get the averaged trace outside the ROI
-                    Avg_out = nanmean(A_out,1);
-                    Avg_out = nanmean(Avg_out,2);
-                    Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
+                    if ~isempty(ROIData)
+                        x = ROIData.mnCoordinates(:,1);
+                        y = ROIData.mnCoordinates(:,2);
+                        %Generate mask for pixels outside the ROI
+                        BW = poly2mask(x,y,sz(1),sz(2)); BW_out = ~BW;
+                        BW_out = repmat(BW_out, [1,1,sz(3)]);
+                        A_out = A_smoothed .* BW_out;
+                        A_out(A_out == 0) = nan;
+                        %Get the averaged trace outside the ROI
+                        Avg_out = nanmean(A_out,1);
+                        Avg_out = nanmean(Avg_out,2);
+                        Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
+                    else 
+                        warning('Can not find .roi file!')
+                        Avg_out_dFoF = [];
+                    end
                     %Save the result
                     save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
                 else

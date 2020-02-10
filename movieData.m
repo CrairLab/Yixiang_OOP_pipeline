@@ -840,7 +840,7 @@ classdef movieData
         
         
         
-        function [A,U,S,V,iniDim] = roiSVD(A, iniDim)
+        function [A,U,S,V,iniDim,PC_exp] = roiSVD(A, iniDim)
 
         %    This function automatically identify the minimum rectangle containing roi
         %    and then do SVD denosing to only the roi part of the original matrix. It 
@@ -895,7 +895,7 @@ classdef movieData
             Sum_var = sum(diag(A_roi'*A_roi));
             PC_exp = eigs./Sum_var;
             
-            save('Var_explained_by_PCs.mat', 'PC_exp');
+            %save('Var_explained_by_PCs.mat', 'PC_exp');
             
             disp('');
 
