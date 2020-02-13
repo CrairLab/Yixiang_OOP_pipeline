@@ -254,17 +254,19 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 clear A_DS
 
                 %ICA analysis of the matrix
-                if ~obj.flag
-                %Only do ICA analysis for spontaneous case
-                    try
-                        [icasig, M, W, corr_map] = movieData.getICA(TH_A);
-                        checkname = [filename(1:length(filename)-4) '_ICA.mat'];
-                        save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
-                    catch
-                        disp('ICA analysis failed')
+                if isfield(param,'ICAflag')
+                    if param.ICAflag && ~param.flag
+                    %Only do ICA analysis for spontaneous case
+                        try
+                            [icasig, M, W, corr_map] = movieData.getICA(TH_A);
+                            checkname = [filename(1:length(filename)-4) '_ICA.mat'];
+                            save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
+                        catch
+                            disp('ICA analysis failed')
+                        end
+                    else
+                        disp('Skip ICA analysis')
                     end
-                else
-                    disp('Skip ICA analysis')
                 end
 
                 %Centered data around origins
@@ -332,13 +334,13 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %de_A(isnan(de_A)) = 0; %resume for later filtering
             end
 
-            if obj.flag == 0 %compute connected components only for spontaneous case
-                %For later analysis, only focus on ROI part
-                ppA_roi = movieData.focusOnroi(A_dFoF); %ppA: pre-processed A
+            %if obj.flag == 0 %compute connected components only for spontaneous case
+            %    %For later analysis, only focus on ROI part
+            %    ppA_roi = movieData.focusOnroi(A_dFoF); %ppA: pre-processed A
                 
-                %Generate connected components using renewCC function
-                Integration.renewCC(ppA_roi,outputFolder,filename)
-            end
+            %    %Generate connected components using renewCC function
+            %    Integration.renewCC(ppA_roi,outputFolder,filename)
+            %end
             clear A_dFoF ppA_roi
             
             disp(['Preprocessing done: ' filename]);

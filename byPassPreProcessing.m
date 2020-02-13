@@ -70,6 +70,9 @@ function byPassPreProcessing(id,param)
         %Do Seed-based correlation 
             A_all = [];
             Avg_out_all = [];
+            if ~isfield(param, 'rechooseIniDim')
+                param.rechooseIniDim = 0;
+            end
             if param.rechooseIniDim == 0  %Loading directly from filtered.mat         
                 for f = 1:nmov
                     try
