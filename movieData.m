@@ -1776,14 +1776,14 @@ classdef movieData
            %Truncate traces using timelag
            [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
             
-           %Control on mean-activity-trace (lower 5% std) using partial correlation if mean_flag == 1
+           %Control on mean-activity-trace (lower 1% std) using partial correlation if mean_flag == 1
            if mean_flag
                disp('Doing partial correlation on CPU...')
                if isempty(Avg_out_all)
                    disp('Background trace not provided!')
-                   disp('Define background trace as mean of the lowest 5% std pixels!')
+                   disp('Define background trace as mean of the lowest 1% std pixels!')
                    std_all = nanstd(imgall,0,2);
-                   lowPixels = std_all <= prctile(std_all,5);
+                   lowPixels = std_all <= prctile(std_all,1);
                    %avg_trace = nanmean(imgall,1);
                    avg_trace = nanmean(imgall(lowPixels,:),1);
                    corrM = partialcorr(imgall',seedTrace', avg_trace');
