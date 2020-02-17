@@ -269,9 +269,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     end
                 end
 
-                %Centered data around origins
+                %Centered data around origins (gross dFoF)
                 A_mean = nanmean(TH_A,3);
-                TH_A = TH_A - A_mean;
+                TH_A = TH_A./A_mean - 1;
 
                 %SVD denosing of down-sampled A
                 try 
@@ -296,7 +296,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 clear TH_A
 
                 %Recover the data, this is important for later dFoF
-                de_A = de_A + A_mean;
+                de_A = de_A.*A_mean + A_mean;
 
                %Impose dFOverF to downsampled matrix
                 if ~obj.flag
