@@ -7,7 +7,7 @@ classdef movieData
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R34 02/10/20 
+% R35 02/19/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -1773,28 +1773,14 @@ classdef movieData
         %   timelag     for timelag analysis
         %
             
-           %Truncate traces using timelag
-           [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
-            
-           %Control on mean-activity-trace (lower 1% std) using partial correlation if mean_flag == 1
-           if mean_flag
-               disp('Doing partial correlation on CPU...')
-               if isempty(Avg_out_all)
-                   disp('Background trace not provided!')
-                   disp('Define background trace as mean of the lowest 1% std pixels!')
-                   std_all = nanstd(imgall,0,2);
-                   lowPixels = std_all <= prctile(std_all,1);
-                   %avg_trace = nanmean(imgall,1);
-                   avg_trace = nanmean(imgall(lowPixels,:),1);
-                   corrM = partialcorr(imgall',seedTrace', avg_trace');
-               else
-                   corrM = partialcorr(imgall',seedTrace', Avg_out_all);
-                   disp('Generated correlation matrix with provided background trace!')
-               end
-               [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);               
-           else
-               %Use GPU if GPU_flag == 1
-               if GPU_flag
+       %Truncate traces using timelag
+        [seedTrace, imgall] = movieData.timelagTruncate(seedTrace, imgall, timelag);          
+
+       %Control on mean-activity-trace (lower 1% std) using partial correlation if mean_flag == 1
+        switch mean_flag
+            case 0 %Do not do partial correlation
+                %Use GPU if GPU_flag == 1
+                if GPU_flag
                     try
                         corrMatrix = movieData.batchSeedsGPU(sz,seedTrace,imgall);
                         disp('Run seeds based correlation on GPU')
@@ -1808,8 +1794,28 @@ classdef movieData
                     corrM = corr(imgall',seedTrace');
                     [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
                     disp('Run seeds based correlation on CPU')
-               end
-           end
+                end
+            case 1 %Do partial correlation using background trace or lowest 1% trace
+                disp('Doing partial correlation on CPU...')
+                if isempty(Avg_out_all) 
+                   disp('Background trace not provided!')
+                   disp('Define background trace as mean of the lowest 1% std pixels!')
+                   std_all = nanstd(imgall,0,2);
+                   lowPixels = std_all <= prctile(std_all,1);
+                   %avg_trace = nanmean(imgall,1);
+                   avg_trace = nanmean(imgall(lowPixels,:),1);
+                   corrM = partialcorr(imgall',seedTrace', avg_trace');
+                else
+                   corrM = partialcorr(imgall',seedTrace', Avg_out_all);
+                   disp('Generated correlation matrix with provided background trace!')
+                end
+                [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
+            case 2 %Do partial correlation using averaged trace
+                disp('Doing partial correlation using mean trace...')
+                avg_trace = nanmean(imgall,1);
+                corrM = partialcorr(imgall',seedTrace', avg_trace');
+                [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
+            end
                       
            %Create new savenames
            %c = clock;
