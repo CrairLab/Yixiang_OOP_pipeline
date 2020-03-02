@@ -1786,7 +1786,7 @@ classdef movieData
                         disp('Run seeds based correlation on GPU')
                         warning('Can not do partial correlation when using GPU!')
                     catch
-                        corrM = corr(imgall',seedTrace');
+                        [corrM, pvalM] = corr(imgall',seedTrace');
                         [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
                         disp('Run on GPU failed, run seeds based correlation on CPU')
                     end
@@ -1804,16 +1804,16 @@ classdef movieData
                    lowPixels = std_all <= prctile(std_all,1);
                    %avg_trace = nanmean(imgall,1);
                    avg_trace = nanmean(imgall(lowPixels,:),1);
-                   corrM = partialcorr(imgall',seedTrace', avg_trace');
+                   [corrM, pvalM] = partialcorr(imgall',seedTrace', avg_trace');
                 else
-                   corrM = partialcorr(imgall',seedTrace', Avg_out_all);
+                   [corrM, pvalM] = partialcorr(imgall',seedTrace', Avg_out_all);
                    disp('Generated correlation matrix with provided background trace!')
                 end
                 [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
             case 2 %Do partial correlation using averaged trace
                 disp('Doing partial correlation using mean trace...')
                 avg_trace = nanmean(imgall,1);
-                corrM = partialcorr(imgall',seedTrace', avg_trace');
+                [corrM, pvalM] = partialcorr(imgall',seedTrace', avg_trace');
                 [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
             end
                       
@@ -1830,8 +1830,14 @@ classdef movieData
            nametag = [num2str(GPU_flag) num2str(mean_flag) '_' num2str(timelag) '_' num2str(size(roi,1))  extra_tag];
            savename1 = ['Correlation_Matrix_' nametag '.mat'];
            savename2 = ['Seeds_' nametag '.mat'];
+           
+           try
+               pvalM = reshape(pvalM, size(corrMatrix));
+           catch
+               disp('Can not reshape pval matrix!')
+           end
  
-           save(savename1,'corrMatrix');
+           save(savename1,'corrMatrix','pvalM');
            save(savename2,'roi');
            
            %Build-in function to filter nan correlation map
