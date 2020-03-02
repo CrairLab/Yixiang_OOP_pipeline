@@ -1791,7 +1791,7 @@ classdef movieData
                         disp('Run on GPU failed, run seeds based correlation on CPU')
                     end
                 else
-                    corrM = corr(imgall',seedTrace');
+                    [corrM, pvalM] = corr(imgall',seedTrace');
                     [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
                     disp('Run seeds based correlation on CPU')
                 end
