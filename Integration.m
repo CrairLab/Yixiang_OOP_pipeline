@@ -1,5 +1,6 @@
 classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Test
 %Integration is a subclass that inherits from all superclasses to
 %analyze auditory experiment data. Specifically, Integration inherits
 %from spike2\baphy\movidData\Names\ROI\wlSwitching classes
