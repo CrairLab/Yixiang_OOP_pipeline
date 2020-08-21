@@ -901,7 +901,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %Filter BW_ppA using the 3D properties of the CCs
             CC = bwconncomp(BW_ppA);
             %minSize = Integration.minSpotSize(CC);
-            %CC = ccThresh_3D(CC,minSpotSize)
+            minSpotSize = 9;
+            CC = Integration.ccThresh_3D(CC,minSpotSize);
             if timeFlag
                 CC = Integration.ccTimeThresh(CC, durT);
             end
@@ -919,7 +920,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             end
             rcs_movie = zeros(size(BW_ppA));
             rcs_movie(x) = 1;
-            BW_ppA = rcs_movie;
+            BW_ppA = logical(rcs_movie);
 
             %Store connected components and regionprops STATS
             region.CC = CC;
