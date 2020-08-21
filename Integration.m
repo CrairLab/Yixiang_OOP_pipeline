@@ -337,7 +337,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             %if obj.flag == 0 %compute connected components only for spontaneous case
                 
             %Generate connected components using renewCC function
-            Integration.renewCC(A_dFoF,outputFolder,filename)
+            Integration.renewCC(A_dFoF,param.CCthreshold, outputFolder,filename)
             %end
             clear A_dFoF ppA_roi
             
