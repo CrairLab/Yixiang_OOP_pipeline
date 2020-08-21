@@ -335,11 +335,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             end
 
             %if obj.flag == 0 %compute connected components only for spontaneous case
-            %    %For later analysis, only focus on ROI part
-            %    ppA_roi = movieData.focusOnroi(A_dFoF); %ppA: pre-processed A
                 
-            %    %Generate connected components using renewCC function
-            %    Integration.renewCC(ppA_roi,outputFolder,filename)
+            %Generate connected components using renewCC function
+            Integration.renewCC(A_dFoF,outputFolder,filename)
             %end
             clear A_dFoF ppA_roi
             
@@ -886,8 +884,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %        BW_ppA  filtered blakc-white matrix
             
             if nargin<3
-                frameFlag = 1;
-                timeFlag = 1;
+                frameFlag = 0;
+                timeFlag = 0;
                 durT = 3;
             end
             
@@ -907,7 +905,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
             if timeFlag
                 CC = Integration.ccTimeThresh(CC, durT);
             end
-            STATS = regionprops(CC,ppA,'Area','BoundingBox', 'Centroid',...
+            
+            STATS = regionprops(CC, ppA,'Area','FilledArea', 'BoundingBox',...
+                'Centroid',...
                 'MaxIntensity', 'MinIntensity', 'MeanIntensity');
             %Integration.makeCCMovie(filename,CC,sz);
             
@@ -968,7 +968,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         end
         
 
-        function renewCC(ppA_roi,outputFolder,filename)
+        function renewCC(ppA_roi,thresh,outputFolder,filename)
         
         %   Renew connected components in case the standards to define what is
         %   a qualified CC is changed.
@@ -981,20 +981,26 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
         %   Outputs:
         %   .mat files that store regionprops, CCs, and BW_ppA matrix after
         %   filtering.
-        
+                
+
+        if nargin < 3
+            outputFolder = cd;
+            filename = 'current.mat';
+            if nargin < 2
+                thresh = 0.05;
+            end
+        end
 
                 %Black-white thresholding of pre-processed A
-                [BW_ppA,~] = Integration.bwThresholding_10prctPixels(ppA_roi); %ppA is short for pre-processed A
-                clear Ga_TH_A;
+                BW_ppA = imbinarize(ppA_roi,thresh);
                 
                 %Compute connected components within each minutes of the movie
-                Integration.minuteFreqCC(BW_ppA,ppA_roi,outputFolder,filename) 
+                %Integration.minuteFreqCC(BW_ppA,ppA_roi,outputFolder,filename) 
 
                 %Generate connected component
                 [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
                 checkname = ['CC_' filename(1:length(filename)-4) '_region.mat'];
                 save(fullfile(outputFolder,checkname),'region');
-                clear TH_A region
 
                 %Save binary movie
                 checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
