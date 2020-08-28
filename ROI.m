@@ -10,7 +10,7 @@ classdef ROI
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R7 02/06/20 
+% R8 08/27/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     
@@ -365,7 +365,21 @@ classdef ROI
         
         end
         
+       
+        function v = generateBoundingBox(ROIData)
+        % Generate bounding box for input roi (2D)
+        % Inputs:
+        %     ROIData     ROI strucut
+        % Outputs:
+        %     v          x,y coordinates of vertices
         
+            mnCoordinates = ROIData.mnCoordinates;
+            v.min_x = min(mnCoordinates(:,1));
+            v.max_x = max(mnCoordinates(:,1));
+            v.min_y = min(mnCoordinates(:,2));
+            v.max_y = max(mnCoordinates(:,2));               
+        
+        end
         
    end
        

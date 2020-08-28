@@ -8,7 +8,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R31 02/10/20 
+% R32 08/27/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
 
     properties
@@ -129,8 +129,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 disp('Detect filtered matrix, skip the whole pre proessing!')
                 load(checkpath);
             else
-
-
                 %If instance matrix exsits, load the object/instance
                 if ~isempty(obj.smallMask)
                     %If smallMask property existed, instance.mat file must had
@@ -154,43 +152,38 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     %Assess movement, doing translation registration at the same time
                     %Run the movement assessment
                     tic;
-                    if param.moveAssessFlag
-                        %If true, call the movAssess function
-                        [A_registered, A_ori, tform_all, NormTform_all, movIdx_saved] = ...
-                        movieData.movAssess(A_corrct);
+                    param.filename = filename;
+                    param.outputFolder = outputFolder;
+                    
+                    %Only register the samllest chunck of the movie
+                    %containing the roi
+                    v = ROI.generateBoundingBox(obj.ROIData); %Get smallest bounding box
+                    A_corrct_cropped = A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :);
 
-                        if size(A_ori,3) ~= size(A_registered,3)
-                        %Save downsampled and registered original movie
-                        %Only save the original movie if there are frames being
-                        %identified as moving and discarded
-                            A_ori_DS = Integration.downSampleMovie(A_ori,param.spacialFactor);
-                            A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
-                                size(A_ori_DS,3)]);
-                            checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
-                            save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
-                            clear A_ori
-                            clear A_ori_DS
-                            movTag = 'dsc';
-                        else
-                            movTag = '';
-                        end                    
-                        disp('Movement assessment finished...Time cost = ')
-                    else
-                        [A_registered, tform_all] = movieData.dftReg(A_corrct, 'forAll');
-                        NormTform_all = sqrt(tform_all(:,3).^2 + tform_all(:,4).^2);
-                        movIdx_saved = ones(size(A_corrct,3),1);
-                        disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
-                        disp('Not calling movAsess function. Only do rigid registration. Time cost = ')
-                        movTag = '';
+                    [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                        movieData.movAssess_NoRMCorre(A_corrct_cropped, param);
+                    disp('Using NoRMCorre algo to regiter movies!')
+                    if isempty(A_registered_cropped)
+
+                        disp('The NoRMCorre algo did not work!')
+                        disp('Switch to fast discrete fourier transformation!')
+
+                        [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                        movieData.movAssess(A_corrct_cropped, param, 'forAll');
+
                     end
-
-
+                             
+                    disp('Movement assessment finished...Time cost = ')
                     toc;
 
                     %Save movemet assessment results
                     checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
-                    save(fullfile(outputFolder,checkname),'tform_all','NormTform_all','movIdx_saved');                
-
+                    save(fullfile(outputFolder,checkname),'tform_all','NormTform_all','movIdx_saved');
+                    
+                    %Recover the full-size movie
+                    A_corrct = A_corrct(:,:,movIdx_saved);
+                    A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :) = A_registered_cropped;
+                    A_registered = A_corrct;
 
                     %Gaussian smoothing
                     A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1
