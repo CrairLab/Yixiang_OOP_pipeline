@@ -7,7 +7,7 @@ classdef movieData
 % Visit https://github.com/CrairLab/Yixiang_OOP_pipeline for more info
 % Author: yixiang.wang@yale.edu
 % Latest update:
-% R35 02/19/20 
+% R36 08/27/20 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    
     properties
         A;   %Input matrix        
@@ -18,7 +18,7 @@ classdef movieData
         function obj = movieData(filename,flag)
         %movieData object constructor
             if ~(flag == 2)
-                obj.A = movieData.inputMovie(filename);
+                obj.A = single(movieData.inputMovie(filename));
             end
             %obj.dfOverFA = movieData.fetchAverageImage(obj.A,filename);
   
@@ -1399,44 +1399,74 @@ classdef movieData
                 
                 
         
-        function [A, A_ori, output_all, NormTform_all, movIdx_saved] = movAssess(A, loadtag)
-        %   Assess movie and get rid of frames with large movements if flag
-        %   == 1. Use discrete fourier transform algorithm to compare phase
+        function [A, movTag, output_all, NormTform_all, movIdx_saved] = ...
+                movAssess(A, param, loadtag)
+        %   Assess movie and get rid of frames with large movements 
+        %   Use discrete fourier transform algorithm to compare phase
         %   correlation. When filtering frames, use a step function as the
         %   convolution kernel (width == 5).
         %
         %   Inputs:
         %     A                   3D matrix
-        %     loadftag            tag for loading specific .mat file  
+        %     param               parameters, should contain moveAssessFlag
+        %                         outputFolder, filename, spacialFactor
         %
         %   Outputs:
         %     A                   Registered matrix
-        %     A_ori               Registered matrix wo discarding frames
-        %     tform_all           The array that stores all transformation matrices
+        %     movTag              Tag for generating filename
+        %     output_all           The array that stores all transformation matrices
         %     NormTform_all       Norm of each matrices (minus I)
         %     movIdx_saved        Indices of matrix that will be saved
-          
-        
-
+                          
             %Do dftregistration
-            if nargin < 2
+            if nargin < 3
                 %Whether provided loadtag or not
-                [A, output_all] = movieData.dftReg(A);
+                [A_ori, output_all] = movieData.dftReg(A);
+                if nargin < 2
+                    moveAssessFlag = 0;
+                    outputFolder = cd;
+                    filename = 'temporaryFile.mat';
+                    spacialFactor = 1;
+                else
+                    moveAssessFlag = param.moveAssessFlag;
+                    outputFolder = param.outputFolder;
+                    filename = param.filename;  
+                    spacialFactor = param.spacialFactor;
+                end
             else
-                [A, output_all] = movieData.dftReg(A, loadtag);
+                [A_ori, output_all] = movieData.dftReg(A, loadtag);
             end
+            
+            
                 
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
+            
+            if moveAssessFlag
+                [A, movIdx_saved, ~] = movieData.discardFrames(A_ori, NormTform_all);
+                %If there are frames being discarded set movTag to dsc
+                disp('Trying to discard moving frames...')
+                if size(A,3)== size(A_ori,3)
+                    movTag = '';
+                    disp('No frame discarded')
+                else
+                    movTag = 'dsc';
+                    A_ori_DS = movieData.downSampleMovie(A_ori,spacialFactor);
+                    A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
+                                size(A_ori_DS,3)]);
+                    checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
+                    save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
+                end
+            else
+                A = A_ori;
+                movIdx_saved = ones(size(A,3),1);
+                movTag = '';
+            end
                    
             %if flag == 1 replace moving frames with mean-intensity frame
             %if flag == 1 discard the neighbouring 5 frames
             %A_mean = reshape(A_mean,[sz(1) sz(2)]);
-            A_ori = A;
-            [A, movIdx_saved, ~] = movieData.discardFrames(A, NormTform_all);
 
             disp(['Mean tform magnitude (minus I) = ' num2str(mean(NormTform_all))]);
-
-
         end
         
       
@@ -1495,6 +1525,153 @@ classdef movieData
      
         end
                 
+        
+        
+        function [A, movTag,output_all, NormTform_all, movIdx_saved] = ...
+                movAssess_NoRMCorre(Yf, param)
+        %   Assess movie and get rid of frames with large movements 
+        %   Use NoRMCorre algo. See https://github.com/flatironinstitute/NoRMCorre
+        %
+        %   Inputs:
+        %     Yf                  3D matrix
+        %     param               parameters, should contain moveAssessFlag
+        %                         outputFolder, filename, spacialFactor
+        %
+        %   Outputs:
+        %     A                   Registered matrix
+        %     movTag              Tag for generating filename
+        %     output_all           The array that stores all transformation matrices
+        %     NormTform_all       Norm of each matrices (minus I)
+        %     movIdx_saved        Indices of matrix that will be saved 
+        
+            if nargin < 2
+                moveAssessFlag = 0;
+                outputFolder = cd;
+                filename = 'temporaryFile.mat';
+                spacialFactor = 1;
+            else
+                moveAssessFlag = param.moveAssessFlag;
+                outputFolder = param.outputFolder;
+                filename = param.filename;
+                spacialFactor = param.spacialFactor;
+            end
+
+            
+            try %In case rigid registration failed
+                %Change from double to single
+                Yf = single(Yf);
+                [d1,d2,T] = size(Yf);
+
+                % perform some sort of deblurring/high pass filtering
+                if (0)    
+                    hLarge = fspecial('average', 40);
+                    hSmall = fspecial('average', 2); 
+                    for t = 1:T
+                        Y(:,:,t) = filter2(hSmall,Yf(:,:,t)) - filter2(hLarge, Yf(:,:,t));
+                    end
+                    %Ypc = Yf - Y;
+                    bound = size(hLarge,1);
+                else
+                    gSig = 7; 
+                    gSiz = 3*gSig; 
+                    psf = fspecial('gaussian', round(2*gSiz), gSig);
+                    ind_nonzero = (psf(:)>=max(psf(:,1)));
+                    psf = psf-mean(psf(ind_nonzero));
+                    psf(~ind_nonzero) = 0;   % only use pixels within the center disk
+                    %Y = imfilter(Yf,psf,'same');
+                    %bound = 2*ceil(gSiz/2);
+                    Y = imfilter(Yf,psf,'symmetric');
+                    bound = 0;
+                end
+                % first try out rigid motion correction
+                    % exclude boundaries due to high pass filtering effects
+                options_r = NoRMCorreSetParms('d1',d1-bound,'d2',d2-bound,'bin_width',200,'max_shift',20,'iter',1,'correct_bidir',false);
+
+                % register using the high pass filtered data and apply shifts to original data
+                tic; [M1,shifts1,template1] = normcorre_batch(Y(bound/2+1:end-bound/2,bound/2+1:end-bound/2,:),options_r); toc % register filtered data
+                    % exclude boundaries due to high pass filtering effects
+                tic; Mr = apply_shifts(Yf,shifts1,options_r,bound/2,bound/2); toc % apply shifts to full dataset
+                    % apply shifts on the whole movie
+                % compute metrics 
+                [cY,mY,vY] = motion_metrics(Y(bound/2+1:end-bound/2,bound/2+1:end-bound/2,:),options_r.max_shift);
+                [cYf,mYf,vYf] = motion_metrics(Yf,options_r.max_shift);
+
+                [cM1,mM1,vM1] = motion_metrics(M1,options_r.max_shift);
+                [cM1f,mM1f,vM1f] = motion_metrics(Mr,options_r.max_shift);
+
+                %shifts_r = squeeze(cat(3,shifts1(:).shifts));
+                try % In case non-rigid registration cannot run through
+                    % now apply non-rigid motion correction
+                    % non-rigid motion correction is likely to produce very similar results
+                    % since there is no raster scanning effect in wide field imaging
+
+                    options_nr = NoRMCorreSetParms('d1',d1-bound,'d2',d2-bound,'bin_width',50, ...
+                        'grid_size',[128,128]*2,'mot_uf',4,'correct_bidir',false, ...
+                        'overlap_pre',32,'overlap_post',32,'max_shift',20);
+
+                    tic; [M2,shifts2,template2] = normcorre_batch(Y(bound/2+1:end-bound/2,bound/2+1:end-bound/2,:),options_nr,template1); toc % register filtered data
+                    tic; Mpr = apply_shifts(Yf,shifts2,options_nr,bound/2,bound/2); toc % apply the shifts to the removed percentile
+
+                    % compute metrics
+
+                    [cM2,mM2,vM2] = motion_metrics(M2,options_nr.max_shift);
+                    [cM2f,mM2f,vM2f] = motion_metrics(Mpr,options_nr.max_shift);
+
+                    % plot shifts        
+
+                    shifts_r = squeeze(cat(3,shifts1(:).shifts));
+                    shifts_nr = cat(ndims(shifts2(1).shifts)+1,shifts2(:).shifts);
+                    shifts_nr = reshape(shifts_nr,[],ndims(Y)-1,T);
+                    shifts_x = squeeze(shifts_nr(:,2,:))';
+                    shifts_y = squeeze(shifts_nr(:,1,:))';
+                    A_ori = Mpr;
+                    disp('Non-rigid registration succeeded!')
+                catch
+                    disp('Non-rigid registration failed but rigid registration succeeded!')
+                    A_ori = Mr;
+                end
+                %Save movement assessment result
+                shifts_r = squeeze(cat(3,shifts1(:).shifts));
+                NormTform_all = sqrt(shifts_r(:,1).^2 + shifts_r(:,2).^2);
+                movIdx_saved = NormTform_all < 0.49;
+                output_all = shifts_r;
+                
+                %Whether discard frames or not
+                if moveAssessFlag
+                    [A, movIdx_saved, ~] = movieData.discardFrames(A_ori, NormTform_all);
+                    disp('Trying to discard moving frames...')
+                    %If there are frames being discarded set movTag to dsc
+                    if size(A,3)== size(A_ori,3)
+                        movTag = '';
+                        disp('No frame discarded')
+                    else
+                        movTag = 'dsc';
+                        A_ori_DS = movieData.downSampleMovie(A_ori,spacialFactor);
+                        A_ori_DS = reshape(A_ori_DS, [size(A_ori_DS,1)*size(A_ori_DS,2),...
+                                    size(A_ori_DS,3)]);
+                        checkname = [filename(1:length(filename)-4) '_ori_DS_registered.mat'];
+                        save(fullfile(outputFolder,checkname),'A_ori_DS','-v7.3');
+                    end
+                else
+                    A = A_ori;
+                    movTag = '';
+                    movIdx_saved = ones(size(A,3),1);
+                end
+            catch
+                %If there is a glich...
+                A_ori = [];
+                A = [];
+                NormTform_all = [];
+                output_all = [];
+                movIdx_saved = [];
+                movTag = '';
+                disp('NoRMCorre rigid registration failed!')
+            end
+            
+
+            
+            
+        end
         
         
         function [A,tform_all,NormTform_all] = movAssessUsingEdge(A, flag, factor)
@@ -1810,9 +1987,12 @@ classdef movieData
                    disp('Generated correlation matrix with provided background trace!')
                 end
                 [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
-            case 2 %Do partial correlation using averaged trace
+            case 2 %Do partial correlation using lowest 1% trace
                 disp('Doing partial correlation using mean trace...')
-                avg_trace = nanmean(imgall,1);
+                %avg_trace = nanmean(imgall,1);
+                std_all = nanstd(imgall,0,2);
+                lowPixels = std_all <= prctile(std_all,1);
+                avg_trace = nanmean(imgall(lowPixels,:),1);
                 [corrM, pvalM] = partialcorr(imgall',seedTrace', avg_trace');
                 [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
             end
