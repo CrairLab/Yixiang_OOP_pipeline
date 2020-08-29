@@ -1435,10 +1435,12 @@ classdef movieData
                 end
             else
                 [A_ori, output_all] = movieData.dftReg(A, loadtag);
+                moveAssessFlag = param.moveAssessFlag;
+                outputFolder = param.outputFolder;
+                filename = param.filename;  
+                spacialFactor = param.spacialFactor;
             end
-            
-            
-                
+                           
             NormTform_all = sqrt(output_all(:,3).^2 + output_all(:,4).^2);
             
             if moveAssessFlag

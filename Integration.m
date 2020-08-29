@@ -159,18 +159,24 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     %containing the roi
                     v = ROI.generateBoundingBox(obj.ROIData); %Get smallest bounding box
                     A_corrct_cropped = A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :);
-
-                    [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
-                        movieData.movAssess_NoRMCorre(A_corrct_cropped, param);
-                    disp('Using NoRMCorre algo to regiter movies!')
-                    if isempty(A_registered_cropped)
-
-                        disp('The NoRMCorre algo did not work!')
-                        disp('Switch to fast discrete fourier transformation!')
-
+                    
+                    if ~param.motionCorrMethod
+                        %Default motion correction method: NoRMCorre
+                        disp('Using NoRMCorre algo to register movies!')
                         [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
-                        movieData.movAssess(A_corrct_cropped, param, 'forAll');
-
+                            movieData.movAssess_NoRMCorre(A_corrct_cropped, param);
+                                                
+                        if isempty(A_registered_cropped)
+                            %If failed try the dft method
+                            disp('The NoRMCorre algo did not work!')
+                            disp('Switch to fast discrete fourier transformation!')
+                            [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                            movieData.movAssess(A_corrct_cropped, param, 'forAll');
+                        end
+                    else
+                        disp('Using dft algo to register movies!')
+                        [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                            movieData.movAssess(A_corrct_cropped, param, 'forAll');
                     end
                              
                     disp('Movement assessment finished...Time cost = ')
