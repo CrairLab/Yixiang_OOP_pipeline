@@ -1485,18 +1485,19 @@ classdef movieData
             %move that much as movIdx_saved
             movIdx_saved = NormTform_all < 0.49;
             saveRatio = sum(movIdx_saved)/sz(3);
-            
+            disp(['saveRatio at 0.49 threshold: ' num2str(saveRatio)])
             filter = [1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 11 frames 
             
             if saveRatio < 0.8
                 warning('More than half of the movie will be discarded given current threshold!')
                 disp('Increase motion detection threshold to 0.7!')
                 disp('Double check movie quality!')
-                %If the norm is larger than 0.51 (>0.5 pixel at both directions)
+                %If the norm is larger than 2 (>2 pixel at both directions)
                 %label as large-movement frame. Save frames that do not
                 %move that much as movIdx_saved
-                movIdx_saved = NormTform_all < 0.51;
+                movIdx_saved = NormTform_all < 2.1;
                 saveRatio = sum(movIdx_saved)/sz(3);
+                disp(['saveRatio at 2.0 threshold: ' num2str(saveRatio)])
                 filter = [1,1,1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 13 frames
             end
             
@@ -1985,7 +1986,8 @@ classdef movieData
                    avg_trace = nanmean(imgall(lowPixels,:),1);
                    [corrM, pvalM] = partialcorr(imgall',seedTrace', avg_trace');
                 else
-                   [corrM, pvalM] = partialcorr(imgall',seedTrace', Avg_out_all);
+                   [Avg_out_all, ~] = movieData.timelagTruncate(Avg_out_all', Avg_out_all', timelag);
+                   [corrM, pvalM] = partialcorr(imgall',seedTrace', Avg_out_all');
                    disp('Generated correlation matrix with provided background trace!')
                 end
                 [corrMatrix, roi] = filterNaNCorrMap(corrM, roi, sz);
