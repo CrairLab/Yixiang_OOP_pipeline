@@ -24,11 +24,17 @@ function byPassPreProcessing(id,param)
     
     if ~exist('param','var')
         if isempty(dir(('parameter.mat')))
+            param.rechooseIniDim = 0;
+            param.moveAssessFlag = 0;
             param.flag = 0;
             param.spacialFactor = 2;
-            param.total_seeds = 500;
+            param.total_seeds = 1000;
             param.GPU_flag = 0;
-            param.rechooseIniDim = 1;
+            param.iniDim = 1;
+            param.mean_flag = 0;
+            param.timelag = 0;
+            param.motionCorrMethod = 0;
+            param.CCthreshold = 0.3;
         else
             load('parameter.mat')
         end
@@ -42,7 +48,7 @@ function byPassPreProcessing(id,param)
                 %Chop the matrix to contain only roi
                 ppA_roi = movieData.focusOnroi(curLoad.A_dFoF);
                 %Renew connected components
-                Integration.renewCC(ppA_roi,outputFolder,filename)
+                Integration.renewCC(ppA_roi,param.CCthreshold, outputFolder,filename)
                 disp(['Preprocessing done: ' filename]);
             end
         case 2

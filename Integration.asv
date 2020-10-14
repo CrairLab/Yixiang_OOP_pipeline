@@ -999,11 +999,11 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
                 %Generate connected component
                 [region,BW_ppA] = Integration.GenerateCC(ppA_roi,BW_ppA);
-                checkname = ['CC_' filename(1:length(filename)-4) '_' num2str(thresh) '_region.mat'];
+                checkname = ['CC_' filename(1:length(filename)-4) '_' num2str(thresh)'_region.mat'];
                 save(fullfile(outputFolder,checkname),'region');
 
                 %Save binary movie
-                checkname = ['Binary_' filename(1:length(filename)-4) '_' num2str(thresh) '.mat'];
+                checkname = ['Binary_' filename(1:length(filename)-4) '.mat'];
                 save(fullfile(outputFolder,checkname),'BW_ppA','-v7.3');
                 clear BW_ppA
         end
