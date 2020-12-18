@@ -1492,10 +1492,10 @@ classdef movieData
                 warning('More than half of the movie will be discarded given current threshold!')
                 disp('Increase motion detection threshold to 0.7!')
                 disp('Double check movie quality!')
-                %If the norm is larger than 2 (>2 pixel at both directions)
+                %If the norm is larger than 1 (>1 pixel at both directions)
                 %label as large-movement frame. Save frames that do not
                 %move that much as movIdx_saved
-                movIdx_saved = NormTform_all < 2.1;
+                movIdx_saved = NormTform_all < 1.5;
                 saveRatio = sum(movIdx_saved)/sz(3);
                 disp(['saveRatio at 2.0 threshold: ' num2str(saveRatio)])
                 filter = [1,1,1,1,1,1,1,1,1,1,1,1,1]; %Default filter: discard the neighbouring 13 frames
