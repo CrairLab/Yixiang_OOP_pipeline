@@ -13,7 +13,7 @@ param.flag = 0;
 %Spatial downsampling factor
 param.spacialFactor = 2;
 %Lower limit for number of seeds
-param.total_seeds = 500;
+param.total_seeds = 2000;
 %Whether to use GPU, default = 0
 param.GPU_flag = 0;
 %Initial dimension to preserve during SVD analysis, default = 1
