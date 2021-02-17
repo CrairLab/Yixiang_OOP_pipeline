@@ -15,11 +15,7 @@ param.spacialFactor = 2;
 %Motion correction methods, 0:NoRMCorre, 1: dft
 param.motionCorrMethod = 0;
 %Lower limit for number of seeds
-<<<<<<< HEAD
-param.total_seeds = 1000;
-=======
 param.total_seeds = 2000;
->>>>>>> ccc7c72bf28018bac6c79671639632efcfda1984
 %Whether to use GPU, default = 0
 param.GPU_flag = 0;
 %Initial dimension to preserve during SVD analysis, default = 1
