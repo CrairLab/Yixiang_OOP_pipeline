@@ -1,6 +1,6 @@
 
 %Set the current directory (data to analyze)
-cd('/gpfs/ysm/project/crair/yw545/BilteralA1/200315_a9Ha10KG6_P12.0_200303litter_4_8.0gmale/IC')
+cd('E:\Yixiang\results\Temporal processing\Naoyuki')
 
 %Set parameters
 %For SVD analysis based on different initial dimensions, default = 0
@@ -12,8 +12,10 @@ param.moveAssessFlag = 0;
 param.flag = 0;
 %Spatial downsampling factor
 param.spacialFactor = 2;
+%Motion correction methods, 0:NoRMCorre, 1: dft
+param.motionCorrMethod = 0;
 %Lower limit for number of seeds
-param.total_seeds = 500;
+param.total_seeds = 1000;
 %Whether to use GPU, default = 0
 param.GPU_flag = 0;
 %Initial dimension to preserve during SVD analysis, default = 1

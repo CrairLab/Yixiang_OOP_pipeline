@@ -157,8 +157,12 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     
                     %Only register the samllest chunck of the movie
                     %containing the roi
-                    v = ROI.generateBoundingBox(obj.ROIData); %Get smallest bounding box
-                    A_corrct_cropped = A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :);
+                    if ~isempty(obj.ROIData)
+                        v = ROI.generateBoundingBox(obj.ROIData); %Get smallest bounding box
+                        A_corrct_cropped = A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :);
+                    else
+                        A_corrct_cropped = A_corrct;
+                    end
                     
                     if ~param.motionCorrMethod
                         %Default motion correction method: NoRMCorre
