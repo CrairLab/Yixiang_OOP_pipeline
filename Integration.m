@@ -192,8 +192,12 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     
                     %Recover the full-size movie
                     A_corrct = A_corrct(:,:,movIdx_saved);
-                    A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :) = A_registered_cropped;
-                    A_registered = A_corrct;
+                    if exist('v','var')
+                        A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :) = A_registered_cropped;
+                        A_registered = A_corrct;
+                    else
+                        A_registered = A_registered_cropped;
+                    end
 
                     %Gaussian smoothing
                     A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1
