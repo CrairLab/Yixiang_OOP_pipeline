@@ -624,9 +624,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                             case '.m'
                                 fprintf(baphyID,'%s\r\n',curName);
                             case '.tif'
-                                if ~contains(curName,'@00')
+                                %if ~contains(curName,'@00')
                                     fprintf(tifID,'%s\r\n',curName);
-                                end
+                                %end
                         end
                     end
                 end                               
