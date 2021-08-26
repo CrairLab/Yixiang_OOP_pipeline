@@ -522,7 +522,7 @@ classdef movieData
         %    downA = [];
             
         %    if length(sz)<3
-                sz(3) = 1;
+        %        sz(3) = 1;
         %    end
 
         %    parfor k = 1:sz(3)  
