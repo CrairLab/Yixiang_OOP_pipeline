@@ -510,38 +510,38 @@ classdef movieData
         %
         %    Output:
         %        downA    spatially downsampled matrix
-
-            sz = size(A);
-            newsz1 = mod(-sz(1),s)+sz(1);
-            newsz2 = mod(-sz(2),s)+sz(2);
-            IdxEnd1 = ceil(sz(1)/s)*s;
-            IdxEnd2 = ceil(sz(2)/s)*s;
+            
+            downA = imresize(A, 1/s, 'bilinear');
+        %    sz = size(A);
+        %    newsz1 = mod(-sz(1),s)+sz(1);
+        %    newsz2 = mod(-sz(2),s)+sz(2);
+        %    IdxEnd1 = ceil(sz(1)/s)*s;
+        %    IdxEnd2 = ceil(sz(2)/s)*s;
             
             %downA = nan(newsz1/s,newsz2/s,sz(3));
-            downA = [];
+        %    downA = [];
             
-            if length(sz)<3
+        %    if length(sz)<3
                 sz(3) = 1;
-            end
+        %    end
 
-            parfor k = 1:sz(3)  
-                A_newk_avg = nan(newsz1/s,newsz2/s,s^2);
-                A_k = A(:,:,k);
-                A_newk = nan(newsz1,newsz2);
-                A_newk(1:sz(1),1:sz(2)) = A_k;
-                count = 0;
-                for i = 1:s
-                    Idx1 = [1+i-1:s:IdxEnd1];
-                    for j = 1:s
-                        count = count + 1;
-                        Idx2 = [1+j-1:s:IdxEnd2];
-                        A_newk_avg(:,:,count) = A_newk(Idx1,Idx2);
-                    end
-                end
-                downA_k = nanmean(A_newk_avg,3);
-                downA(:,:,k) = downA_k;
-            end
-
+        %    parfor k = 1:sz(3)  
+        %        A_newk_avg = nan(newsz1/s,newsz2/s,s^2);
+        %        A_k = A(:,:,k);
+        %        A_newk = nan(newsz1,newsz2);
+        %        A_newk(1:sz(1),1:sz(2)) = A_k;
+        %        count = 0;
+        %        for i = 1:s
+        %            Idx1 = [1+i-1:s:IdxEnd1];
+        %            for j = 1:s
+        %                count = count + 1;
+        %                Idx2 = [1+j-1:s:IdxEnd2];
+        %                A_newk_avg(:,:,count) = A_newk(Idx1,Idx2);
+        %            end
+        %        end
+        %        downA_k = nanmean(A_newk_avg,3);
+        %        downA(:,:,k) = downA_k;
+        %    end
         end
 
 
