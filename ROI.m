@@ -372,12 +372,21 @@ classdef ROI
         %     ROIData     ROI strucut
         % Outputs:
         %     v          x,y coordinates of vertices
+            
+        mnCoordinates = [];
         
+        try %read in from .roi case
             mnCoordinates = ROIData.mnCoordinates;
-            v.min_x = min(mnCoordinates(:,1));
-            v.max_x = max(mnCoordinates(:,1));
-            v.min_y = min(mnCoordinates(:,2));
-            v.max_y = max(mnCoordinates(:,2));               
+        catch %read in from .zip case (multiple rois)
+            for i = 1:length(ROIData)
+                mnCoordinates = [mnCoordinates; ROIData{i}.mnCoordinates];
+            end
+        end
+        
+        v.min_x = min(mnCoordinates(:,1));
+        v.max_x = max(mnCoordinates(:,1));
+        v.min_y = min(mnCoordinates(:,2));
+        v.max_y = max(mnCoordinates(:,2));
         
         end
         
