@@ -81,16 +81,16 @@ classdef movieData
         %    output: 3D-matrix A containing data from a specific movie
         
             A = openMovie(filename);
-            tmp = dir([filename(1:length(filename)-4) '@00*.tif']);
+            %tmp = dir([filename(1:length(filename)-4) '@00*.tif']);
             %Make a combined matrix for each recording
-            if ~isempty(tmp)
-                for j = 1:numel(tmp)
-                    fn = tmp(j).name;
-                    B = openMovie(fn);
-                    A = cat(3, A, B);
-                    clear B
-                end
-            end             
+            %if ~isempty(tmp)
+            %    for j = 1:numel(tmp)
+            %        fn = tmp(j).name;
+            %        B = openMovie(fn);
+            %        A = cat(3, A, B);
+            %        clear B
+            %    end
+            %end             
         end
              
         
