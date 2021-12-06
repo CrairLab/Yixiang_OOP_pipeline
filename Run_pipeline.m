@@ -1,8 +1,10 @@
 
 %Set the current directory (data to analyze)
-cd('E:\Yixiang\results\Temporal processing\Naoyuki')
+cd('Z:\Yixiang\Ali&Marcin_example_widefield\[10.2]_P10_Vip-Cre\2_post-CNO')
 
 %Set parameters
+%Combine frames into tiff stacks
+param.combineFrames = 1;
 %For SVD analysis based on different initial dimensions, default = 0
 param.rechooseIniDim = 0;
 %Whether discard frames that contain large motions, recommend set to 0

@@ -1139,5 +1139,47 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 Avg_out_dFoF = [];
             end
         end
+        
+        
+        
+        function combineFrames2stacks(stack_length)
+        % For Ali & Marcin new data formats, combine individual tif frames
+        % into tif stacks
+        
+        if nargin < 1
+            stack_length = 3000;
+        end
+        
+            disp(['Length of stack is: ' num2str(stack_length)])
+            tmp_list = dir('*.tif');
+            nframes = length(tmp_list);
+            nstacks = ceil(nframes/stack_length);
+            filename = tmp_list(1).name();
+            filename = filename(1:length(filename)-10);
+            
+            for i = 1:nstacks %how many tiff staccks to generate
+                
+                cur_ini = (i-1)*stack_length + 1; %initial frame
+                cur_end = min(i*stack_length, nframes); % end frame
+                
+                if i > 1
+                    outputFileName = [filename  '@000'  num2str(i-1)  '.tif'];
+                else 
+                    outputFileName = [filename  '.tif'];
+                end
+               
+                %Write frames to the stack
+                for f= cur_ini: cur_end
+                    fn = tmp_list(f).name();
+                    cur_frame = imread(fn);                    
+                    imwrite(cur_frame, outputFileName, 'WriteMode', 'append') 
+                    delete(fn);
+                end
+                fclose all
+                disp(['Combining done at stacks#' num2str(i)])
+            end
+        end
+            
+            
     end
 end

@@ -21,6 +21,11 @@ function audPipe(param)
 
     %Convert spike2 raw data to .mat files
     %Integration.Spike2Matlab(cd);
+    
+    %Combine frames into tiff stacks
+    if param.combineFrames == 1
+        Integration.combineFrames2stacks();
+    end
        
     %Detect movie/baphy/spike2/roi files 
     Integration.fileDetector();
