@@ -56,7 +56,7 @@ classdef ROI
    
    methods(Static)    
        
-       function A2 = ApplyMask(A,ROIData)
+       function A2 = ApplyMask(A,ROIData,downFactor)
        
        %   Apply 3D mask to matrix A (movies). First call the ROIMask
        %   function to generate 2D mask, then extend 2D mask to 3D mask.
@@ -64,31 +64,37 @@ classdef ROI
        %    Inputs:
        %        A      Input movie (3D)
        %        ROIData     Cell array containing ROI structures
+       %        downFactor  downsampling factor for the ROI
        
+       if nargin <= 2
+           downFactor = 1;
+       end
+     
                
-             sz = size(A);
-             if ~isempty(ROIData)
-                 try
-                    [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
-                    Masks3D = repmat(Mask,[1 1 sz(3)]);
+         sz = size(A);
+         if ~isempty(ROIData)
+             try
+                [~, Mask] = ROI.ROIMask(ROIData,sz(1:2));
+                Mask = imresize(Mask, 1/downFactor, 'bilinear');
+                Masks3D = repmat(Mask,[1 1 sz(3)]);
+                A2 = Masks3D.* A;
+             catch
+                disp('Mask size does not conform with movie size');
+                disp('Try to conform movie and mask');
+                [~, Mask] = ROI.ROIMask(ROIData);
+                [flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2)); 
+                if flag
+                    Masks3D = repmat(Mask,[1 1 sz(3)]);                       
                     A2 = Masks3D.* A;
-                 catch
-                    disp('Mask size does not conform with movie size');
-                    disp('Try to conform movie and mask');
-                    [~, Mask] = ROI.ROIMask(ROIData);
-                    [flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2)); 
-                    if flag
-                        Masks3D = repmat(Mask,[1 1 sz(3)]);                       
-                        A2 = Masks3D.* A;
-                        disp('Succeeded in complying the mask size extracted from roi file with matrix size!')
-                    else
-                        warning('Faied to comply the mask size extracted from roi file with matrix size!')
-                        A2 = A;
-                    end
-                 end
-             else
-                 A2 = A;
+                    disp('Succeeded in complying the mask size extracted from roi file with matrix size!')
+                else
+                    warning('Faied to comply the mask size extracted from roi file with matrix size!')
+                    A2 = A;
+                end
              end
+         else
+             A2 = A;
+         end
             
        end
        
@@ -134,12 +140,12 @@ classdef ROI
                    Mask = Mask + poly2mask(Coordinates(:,1),Coordinates(:,2),default_sz(1),default_sz(2));                            
                end
                %Try to conform mask size and matrix size
-               [flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2));
-               if ~flag
-                   Mask = ones(sz);
-                   disp('Dimensions do not agree. Current size is: '); sz
-                   disp('Make Mask = ones(sz);');
-               end
+               %[flag, Mask] = ROI.makeSizeConform(Mask,sz(1:2));
+               %if ~flag
+                   %Mask = ones(sz);
+               %    disp('Dimensions do not agree. Current size is: '); sz
+               %   %disp('Make Mask = ones(sz);');
+               %end
            else
                Mask = ones(sz);
            end
