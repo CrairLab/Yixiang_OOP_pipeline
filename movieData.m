@@ -761,6 +761,7 @@ classdef movieData
             end
             A = reshape(A_re./A_F0 - 1,sz);
             
+            A_F0 = reshape(A_F0(:,1), [sz(1), sz(2)]);
             disp(['Compute dF/F0 based on ' num2str(xth) 'th percentile'])
             save(['A_F0_' num2str(xth) '.mat'], 'A_F0'); 
             
