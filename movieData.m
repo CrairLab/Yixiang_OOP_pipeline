@@ -740,24 +740,29 @@ classdef movieData
             
         end
         
-        function A = grossDFoverF(A, flag)
+        function A = grossDFoverF(A, flag, xth)
         %    Doing gross dFoverF calculation.
-        if nargin == 1
-            flag = 1;
-        end
+            if nargin == 1
+                flag = 1;
+                xth = 5;
+            end
         
             sz = size(A);
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
                 
             if flag == 1
             %Use bottom 5th percentile as F0
-                A_F0 = prctile(A_re,5,2);
+                A_F0 = prctile(A_re,xth,2);
                 A_F0 = repmat(A_F0,[1,sz(3)]);
             else
             % Use mean values as F0
                 A_F0 = repmat(mean(A_re,2),[1,sz(3)]);
+                xth = 50;
             end
             A = reshape(A_re./A_F0 - 1,sz);
+            
+            disp(['Compute dF/F0 based on ' num2str(xth) 'th percentile'])
+            save(['A_F0_' num2str(xth) '.mat'], 'A_F0'); 
             
         end
         
