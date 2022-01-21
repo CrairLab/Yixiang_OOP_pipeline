@@ -221,7 +221,7 @@ classdef ROI
             szM = size(Mask);
             downFactor = szM(1)/sz(1);
             if szM(1)/sz(1) > 1
-                 Mask = imresize(Mask, 1/downFactor, 'bilinear');
+                 Mask = imresize(Mask, round(1/downFactor), 'bilinear');
             end
             
             %szM = size(Mask);
