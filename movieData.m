@@ -751,7 +751,7 @@ classdef movieData
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
                 
             if flag == 1
-            %Use bottom 5th percentile as F0
+            %Use bottom xth percentile as F0
                 A_F0 = prctile(A_re,xth,2);
                 A_F0 = repmat(A_F0,[1,sz(3)]);
             else
@@ -831,15 +831,14 @@ classdef movieData
             A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
             x = 1:sz(3);
             
-            mean_series = mean(A_re,1);
+            mean_series = nanmean(A_re,1);
             
             f = fit(x',mean_series','exp1');
             trend = f.a.*exp(f.b.*x);
-            trend = trend./min(trend);
-            
+            mean_baseline = nanmean(trend);
             
             trend = repmat(trend,[sz(1)*sz(2),1]);
-            A_corrct = A_re./trend;
+            A_corrct = A_re - trend + mean_baseline;
             A = reshape(A_corrct,sz);
                 
         end
