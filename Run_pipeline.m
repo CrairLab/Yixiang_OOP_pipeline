@@ -36,3 +36,11 @@ byPassPreProcessing(3, param);
 %Run the seed-based correlation (partial)
 param.mean_flag = 1;
 byPassPreProcessing(3, param);
+
+WAIP;
+
+
+
+
+
+

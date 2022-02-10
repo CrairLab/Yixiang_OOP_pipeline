@@ -114,7 +114,7 @@ classdef movieData
         
         function A = TopHatFiltering(A,hat)
         
-        %    Doing top-hat filtering here, default hat value equals to 150
+        %    Doing top-hat filtering here, default hat value equals to 600
         %    
         %    Inputs:
         %        hat   parameter for top hat filtering  
@@ -133,16 +133,31 @@ classdef movieData
             end
             
             A = reshape(A,sz(1)*sz(2),sz(3));
+            A_mean = nanmean(A, 2); % Get the raw mean
             se = strel('line', hat, 0);
-            flpA = horzcat(fliplr(A(:,1:hat)),A(:,:));  
+            flpA = horzcat(-fliplr(A(:,1:hat)) + 2*A(:,1), A); % flip and stick
+            clear A
             % A_ln = zeros(sz(1)*sz(2), (sz(3))+hat);
             
             % Tophat filtering here, the filter is acting on the time axis
-            % http://utam.gg.utah.edu/tomo03/03_mid/HTML/node120.html                 
-            A_ln = imtophat(flpA, se);  %opening:https://en.wikipedia.org/wiki/Opening_(morphology)
-          
-            A = A_ln(:,(hat+1):end); 
-            A=reshape(A,sz(1),sz(2),sz(3));    
+            % http://utam.gg.utah.edu/tomo03/03_mid/HTML/node120.html
+            nn = ~isnan(flpA(:,1)); nz = ~(flpA(:, 1) == 0); % Get indices of non-nan of non-zero elements
+            nn = logical(nn .* nz);
+            flpA_nn = flpA(nn, :);
+            clear flpA;
+            A_filtered = imtophat(flpA_nn, se);  %opening:https://en.wikipedia.org/wiki/Opening_(morphology)
+            clear flpA_nn
+            
+            A = nan([sz(1)*sz(2),sz(3)]);
+            A_filtered = A_filtered(:,(hat+1):end);
+            A(nn,:) = A_filtered;
+            A_filtered_mean = nanmean(A_filtered, 2);
+            A_mean_filtered = A_mean; 
+            A_mean_filtered(nn, :) = A_filtered_mean;
+            A_mean_ = A_mean - A_mean_filtered;
+            A = A + repmat(A_mean_, [1, sz(3)]);
+            A = reshape(A, sz);          
+            
         end
         
         
@@ -827,19 +842,24 @@ classdef movieData
         %    Outputs:
         %        A          bleaching corrected matrix
             
-            sz= size(A);
-            A_re = reshape(A,[sz(1)*sz(2),sz(3)]);
-            x = 1:sz(3);
+            %sz= size(A);
+            %A_re = reshape(A,[sz(1)*sz(2),sz(3)]); clear A;
+            %x = 1:sz(3);
             
-            mean_series = nanmean(A_re,1);
+            %mean_series = nanmean(A_re,1);
+            %mean_baseline = nanmean(mean_series);
             
-            f = fit(x',mean_series','exp1');
-            trend = f.a.*exp(f.b.*x);
-            mean_baseline = nanmean(trend);
+            %f = fit(x',mean_series','exp1');
+            %trend = f.a.*exp(f.b.*x);
+            %mean_baseline = nanmean(trend);
             
-            trend = repmat(trend,[sz(1)*sz(2),1]);
-            A_corrct = A_re - trend + mean_baseline;
-            A = reshape(A_corrct,sz);
+            %trend = repmat(trend,[sz(1)*sz(2),1]);
+            %A_corrct = A_re - trend + mean_baseline;
+            %A_re = detrend(A_re', 1);
+            %A_corrct = A_re' + mean_baseline; clear A_re;
+            
+            %A = reshape(A_corrct,sz);
+            A = movieData.TopHatFiltering(A);
                 
         end
         
@@ -1371,8 +1391,8 @@ classdef movieData
                 disp(['loadtag detected: ' loadtag])
             end
         
-            mask = isnan(A);
-            A(mask) = 0;
+            mask = isnan(A(:,:,1));
+            A(mask, :) = 0;
             %Use the median frame as reference
 
             if loadflag
