@@ -222,6 +222,10 @@ classdef ROI
             downFactor = round(szM(1)/sz(1));
             if szM(1)/sz(1) > 1
                  Mask = imresize(Mask, 1/downFactor, 'bilinear');
+                 szM_ds = size(Mask);
+                 if szM_ds(1) ~= sz(1)
+                    Mask = movieData.focusOnroi(Mask);
+                 end
             end
             
             %szM = size(Mask);
