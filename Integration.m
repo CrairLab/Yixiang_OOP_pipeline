@@ -133,87 +133,77 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 if ~isempty(obj.smallMask)
                     %If smallMask property existed, instance.mat file must had
                     %already exisited
-                    A_DS = obj.A;
+                    A6 = obj.A;
                     sz = size(obj.smallMask);
 
                     %Recover 3D matrix A_DS
-                    if length(size(A_DS)) == 2
-                        A_DS = reshape(A_DS, [sz(1) sz(2) size(A_DS,2)]);
+                    if length(size(A6)) == 2
+                        A6 = reshape(A6, [sz(1) sz(2) size(A6,2)]);
                     end                
                 else                    
                     %If instance matrix not detected, create one
-
-                    %Correct photobleaching
-                    A_corrct = Integration.bleachCorrection(obj.A);
-                    obj.A = [];
-                    disp('Photobleaching corrected!');
-
-
-                    %Assess movement, doing translation registration at the same time
-                    %Run the movement assessment
+                    
+                    
+                    % / Downsampling
+                    A1 = Integration.downSampleMovie(obj.A, param.spacialFactor);
+                    disp('Downsampling done!')
+                    
+                    % / Rigid registration
                     tic;
                     param.filename = filename;
                     param.outputFolder = outputFolder;
                     
-                    %Only register the samllest chunck of the movie
-                    %containing the roi
-                    if ~isempty(obj.ROIData)
-                        v = ROI.generateBoundingBox(obj.ROIData); %Get smallest bounding box
-                        A_corrct_cropped = A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :);
-                    else
-                        A_corrct_cropped = A_corrct;
-                    end
-                    
                     if ~param.motionCorrMethod
                         %Default motion correction method: NoRMCorre
                         disp('Using NoRMCorre algo to register movies!')
-                        [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
-                            movieData.movAssess_NoRMCorre(A_corrct_cropped, param);
+                        [A2, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                            movieData.movAssess_NoRMCorre(A1, param);
                                                 
                         if isempty(A_registered_cropped)
                             %If failed try the dft method
                             disp('The NoRMCorre algo did not work!')
                             disp('Switch to fast discrete fourier transformation!')
-                            [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
-                            movieData.movAssess(A_corrct_cropped, param, 'forAll');
+                            [A2, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                            movieData.movAssess(A1, param, 'forAll');
                         end
                     else
                         disp('Using dft algo to register movies!')
-                        [A_registered_cropped, movTag, tform_all, NormTform_all, movIdx_saved] = ...
-                            movieData.movAssess(A_corrct_cropped, param, 'forAll');
+                        [A2, movTag, tform_all, NormTform_all, movIdx_saved] = ...
+                            movieData.movAssess(A1, param, 'forAll');
                     end
-                             
+                    
                     disp('Movement assessment finished...Time cost = ')
-                    toc;
-
+                    toc;                    
+                    clear A1
+                    
                     %Save movemet assessment results
                     checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
                     save(fullfile(outputFolder,checkname),'tform_all','NormTform_all','movIdx_saved');
-                    
-                    %Recover the full-size movie
-                    A_corrct = A_corrct(:,:,movIdx_saved);
-                    if exist('v','var')
-                        A_corrct(v.min_y:v.max_y, v.min_x:v.max_x, :) = A_registered_cropped;
-                        A_registered = A_corrct;
-                    else
-                        A_registered = A_registered_cropped;
-                    end
-
-                    %Gaussian smoothing
-                    A_registered = Integration.GauSmoo(A_registered,1); %set sigma = 1
+                                                                   
+                    % / Correct photobleaching
+                    A3 = Integration.bleachCorrection(A2);
+                    obj.A = []; clear A2
+                    disp('Photobleaching corrected!');
+                   
+                    % / Gaussian smoothing
+                    A4 = Integration.GauSmoo(A3,1); %set sigma = 1
                     disp('Gaussian smoothing is done');
+                    clear A3
                     disp(' ')
 
-                    %Apply ROI mask(s)
-                    A_ROI = Integration.ApplyMask(A_registered,obj.ROIData);
+                    % / Apply ROI mask(s)
+                    A5 = Integration.ApplyMask(A4,obj.ROIData, param.spacialFactor);
                     disp('Successfully apply ROI')
-                    clear A_corrct
+                    
                     
                     %Get averaged dF/F outside of the ROI
-                    A_out = A_registered .* (A_ROI == 0);
+                    sz = size(A4); 
+                    A4 = reshape(A4, [sz(1)*sz(2),sz(3)]);
+                    A5 = reshape(A5, [sz(1)*sz(2),sz(3)]);
+                    outInd = A5(:,1) == 0;
+                    A_out = A4(outInd, :);
                     A_out(A_out == 0) = nan;
-                    Avg_out = nanmean(A_out,1);
-                    Avg_out = nanmean(Avg_out,2);
+                    Avg_out = nanmean(A_out,1); Avg_out = reshape(Avg_out, [1, 1, sz(3)]);
                     Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
                     if any(isnan(Avg_out_dFoF))
                         Avg_out_dFoF = [];
@@ -221,23 +211,19 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     end
                     checkname = [filename(1:length(filename)-4) '_out_dFoF.mat'];
                     save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
-                    clear A_registered Avg_out_dFoF
+                    clear A4 Avg_out_dFoF
 
-                    %Focusing on just the ROI part of the movie
-                    A_ROI = movieData.focusOnroi(A_ROI);
-
-                    %Downsampling
-                    A_DS = Integration.downSampleMovie(A_ROI,param.spacialFactor);
-                    disp(['Successfully downsample by factor of ' num2str(param.spacialFactor)])
-                    clear A_ROI
+                    % / Focusing on just the ROI part of the movie
+                    A5 = reshape(A5, sz);
+                    A6 = movieData.focusOnroi(A5);
 
                     %Get the downsampled roi mask
-                    sz = size(A_DS);
-                    ds_Mask = repmat((A_DS(:,:,1) ~= 0),[1,1,sz(3)]);
+                    sz = size(A6);
+                    ds_Mask = repmat((A6(:,:,1) ~= 0),[1,1,sz(3)]);
                     obj.smallMask = ds_Mask(:,:,1);              
 
                     %"Raw" data stored (reshape to 2D to save space)
-                    obj.A = reshape(A_DS, [sz(1)*sz(2), sz(3)]);
+                    obj.A = reshape(A6, [sz(1)*sz(2), sz(3)]);
 
                     %Save the instance as an object
                     checkname = [filename(1:length(filename)-4) '_instance.mat'];
@@ -249,23 +235,22 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %Top-hat filtering
                 if ~obj.flag
                     %TH_A = Integration.TopHatFiltering(A_DS);
-                    TH_A = A_DS;
+                    A7 = A6;
                     %disp('Top-hat filtering is done');
                     disp('Not doing top-hat filtering here')
                 else
-                    sz = size(A_DS); se = strel('rectangle',[sz(1)*2,sz(2)]*2);
-                    TH_A = imtophat(A_DS, se);
-                    disp('For stimulation experiments, not doing top-hat filtering in time dimmension')
+                    A7 = movieData.TopHatFiltering(A6, 300);
+                    disp('Doing top-hat filtering...')
                     disp('')
                 end
-                clear A_DS
+                clear A6
 
                 %ICA analysis of the matrix
                 if isfield(param,'ICAflag')
                     if param.ICAflag && ~param.flag
                     %Only do ICA analysis for spontaneous case
                         try
-                            [icasig, M, W, corr_map] = movieData.getICA(TH_A);
+                            [icasig, M, W, corr_map] = movieData.getICA(A7);
                             checkname = [filename(1:length(filename)-4) '_ICA.mat'];
                             save(fullfile(outputFolder,checkname),'icasig', 'M', 'W', 'corr_map')
                         catch
@@ -277,8 +262,8 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 end
 
                 %Centered data around origins (gross dFoF)
-                A_mean = nanmean(TH_A,3);
-                TH_A = TH_A./A_mean - 1;
+                A_mean = nanmean(A7,3);
+                A7 = A7./A_mean - 1;
 
                 %SVD denosing of down-sampled A
                 try 
@@ -287,37 +272,37 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     iniDim = 1; param.iniDim = iniDim;
                 end
                 %iniDim = iniDim + iniDimFlag;
-                [de_A,U,S,V,iniDim,PC_exp] = Integration.roiSVD(TH_A, iniDim);
+                [A8,U,S,V,iniDim,PC_exp] = Integration.roiSVD(A7, iniDim);
                 %Reaply downsampled roi mask
                 if ~exist('ds_Mask','var')
                     ds_Mask = obj.smallMask;
-                    ds_Mask = repmat(ds_Mask, [1,1,size(de_A,3)]);
+                    ds_Mask = repmat(ds_Mask, [1,1,size(A8,3)]);
                 end
-                de_A = de_A.*ds_Mask;
-                de_A(de_A == 0) = nan;
+                A8 = A8.*ds_Mask;
+                A8(A8 == 0) = nan;
                 checkname = [filename(1:length(filename)-4) '_SVD.mat'];
                 save(fullfile(outputFolder,checkname),'U','S','V','PC_exp'...
                     ,'param','iniDim');
                 disp('SVD denosing is done')
                 disp('')
-                clear TH_A
+                clear A7
 
                 %Recover the data, this is important for later dFoF
-                de_A = de_A.*A_mean + A_mean;
+                A8 = A8.*A_mean + A_mean;
 
                %Impose dFOverF to downsampled matrix
                 if ~obj.flag
-                    A_dFoF = Integration.grossDFoverF(de_A);
+                    A_dFoF = Integration.grossDFoverF(A8);
                     A_dFoF = A_dFoF.*ds_Mask;
                     clear A_registered
                     disp('Gloabal dFoverF is done')
                     disp(' ')
                 else 
-                    A_dFoF = de_A;
+                    A_dFoF = A8;
                     disp('Do not do gross dFoF for stimulation experiment!')
                     disp('')
                 end
-                clear de_A;
+                clear A8;
 
                 %Z-scoring de_A along the time dimension
                 %de_A = zscore(de_A,1,3);
@@ -624,9 +609,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                             case '.m'
                                 fprintf(baphyID,'%s\r\n',curName);
                             case '.tif'
-                                %if ~contains(curName,'@00')
+                                if ~contains(curName,'@00')
                                     fprintf(tifID,'%s\r\n',curName);
-                                %end
+                                end
                         end
                     end
                 end                               

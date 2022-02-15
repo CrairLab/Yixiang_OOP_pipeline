@@ -81,16 +81,16 @@ classdef movieData
         %    output: 3D-matrix A containing data from a specific movie
         
             A = openMovie(filename);
-            %tmp = dir([filename(1:length(filename)-4) '@00*.tif']);
+            tmp = dir([filename(1:length(filename)-4) '@00*.tif']);
             %Make a combined matrix for each recording
-            %if ~isempty(tmp)
-            %    for j = 1:numel(tmp)
-            %        fn = tmp(j).name;
-            %        B = openMovie(fn);
-            %        A = cat(3, A, B);
-            %        clear B
-            %    end
-            %end             
+            if ~isempty(tmp)
+                for j = 1:numel(tmp)
+                    fn = tmp(j).name;
+                    B = openMovie(fn);
+                    A = cat(3, A, B);
+                    clear B
+                end
+            end             
         end
              
         
@@ -148,14 +148,17 @@ classdef movieData
             A_filtered = imtophat(flpA_nn, se);  %opening:https://en.wikipedia.org/wiki/Opening_(morphology)
             clear flpA_nn
             
-            A = nan([sz(1)*sz(2),sz(3)]);
+            A_filtered = single(A_filtered);
+            %A = zeros([sz(1)*sz(2),sz(3)]);
             A_filtered = A_filtered(:,(hat+1):end);
-            A(nn,:) = A_filtered;
+            %A(nn,:) = A_filtered;
             A_filtered_mean = nanmean(A_filtered, 2);
             A_mean_filtered = A_mean; 
             A_mean_filtered(nn, :) = A_filtered_mean;
             A_mean_ = A_mean - A_mean_filtered;
-            A = A + repmat(A_mean_, [1, sz(3)]);
+            A_mean_(~nn, :) = nan;
+            A = repmat(A_mean_, [1, sz(3)]);
+            A(nn, :) = A(nn, :) + A_filtered;
             A = reshape(A, sz);          
             
         end
@@ -835,6 +838,8 @@ classdef movieData
         function A = bleachCorrection(A)
         
         %    Correcting fluorescence bleaching, assuming exponential decrease
+        %    Idea here: doing region-wise exponential-based correction by
+        %    acting on the mean trace of a submatrix defined by a slide window of width 5 
         %   
         %   Inputs:
         %        A          input matrix
@@ -842,25 +847,82 @@ classdef movieData
         %    Outputs:
         %        A          bleaching corrected matrix
             
-            %sz= size(A);
-            %A_re = reshape(A,[sz(1)*sz(2),sz(3)]); clear A;
-            %x = 1:sz(3);
             
-            %mean_series = nanmean(A_re,1);
-            %mean_baseline = nanmean(mean_series);
+            sz = size(A);
+            window_w = 5; %w_rem = rem(sz(1), window_w);
+            window_h = 5; %h_rem = rem(sz(2), window_h);
+            n_w = floor(sz(1)/ window_w);
+            n_h = floor(sz(2)/ window_h);
             
-            %f = fit(x',mean_series','exp1');
-            %trend = f.a.*exp(f.b.*x);
-            %mean_baseline = nanmean(trend);
+            for i = 1:n_w % Doing photobleaching by sliding window of size 5
+                for j = 1:n_h
+                    w_ini = (i-1) * window_w + 1;
+                    w_end = i * window_w;
+                    h_ini = (j-1) * window_h + 1;
+                    h_end = j * window_h;
+                    A_slice = A(w_ini:w_end, h_ini:h_end, :);
+                    A(w_ini:w_end, h_ini:h_end, :) = movieData.bleachCorrectionByMean(A_slice);
+                end
+            end
             
-            %trend = repmat(trend,[sz(1)*sz(2),1]);
-            %A_corrct = A_re - trend + mean_baseline;
-            %A_re = detrend(A_re', 1);
-            %A_corrct = A_re' + mean_baseline; clear A_re;
+            flag = 0;
+            % Handle the remained columns
+            if w_end < sz(1)
+                w_ini = w_end + 1;
+                w_end = sz(1);
+                for j = 1:n_h
+                    h_ini = (j-1) * window_h + 1;
+                    h_end = j * window_h;
+                    A_slice = A(w_ini:w_end, h_ini:h_end, :);
+                    A(w_ini:w_end, h_ini:h_end, :) = movieData.bleachCorrectionByMean(A_slice);
+                end
+                flag = 1;
+            end
             
-            %A = reshape(A_corrct,sz);
-            A = movieData.TopHatFiltering(A);
+            % Handle the remained rows
+            if h_end < sz(2)
+                h_ini = h_end + 1;
+                h_end = sz(2);
+                for i = 1:nw
+                    w_ini = (i-1) * window_w + 1;
+                    w_end = i * window_w;
+                    A_slice = A(w_ini:w_end, h_ini:h_end, :);
+                    A(w_ini:w_end, h_ini:h_end, :) = movieData.bleachCorrectionByMean(A_slice);
+                end
+                flag = 1;
+            end
+            
+            % Handle the last botton right corner
+            if flag == 1
+                A_slice = A(w_ini:w_end, h_ini:h_end, :);
+                A(w_ini:w_end, h_ini:h_end, :) = movieData.bleachCorrectionByMean(A_slice);
+            end
+            
+            %A = movieData.TopHatFiltering(A);
                 
+        end
+        
+        
+        function A_corrct = bleachCorrectionByMean(A)
+            
+           sz= size(A);
+           A_re = reshape(A,[sz(1)*sz(2),sz(3)]); clear A;
+           x = 1:sz(3);
+            
+           mean_series = nanmean(A_re,1);
+           %mean_baseline = nanmean(mean_series);
+            
+           f = fit(x',mean_series','exp1');
+           trend = f.a.*exp(f.b.*x);
+           
+           mean_trend = nanmean(trend);
+           trend = repmat(trend,[sz(1)*sz(2),1]);
+           A_corrct = A_re - trend + mean_trend;
+           %A_re = detrend(A_re', 1);
+           %A_corrct = A_re' + mean_baseline; clear A_re;
+            
+           A_corrct = reshape(A_corrct,sz); 
+            
         end
         
         
