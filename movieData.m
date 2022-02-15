@@ -911,17 +911,22 @@ classdef movieData
             
            mean_series = nanmean(A_re,1);
            %mean_baseline = nanmean(mean_series);
-            
-           f = fit(x',mean_series','exp1');
-           trend = f.a.*exp(f.b.*x);
            
-           mean_trend = nanmean(trend);
-           trend = repmat(trend,[sz(1)*sz(2),1]);
-           A_corrct = A_re - trend + mean_trend;
-           %A_re = detrend(A_re', 1);
-           %A_corrct = A_re' + mean_baseline; clear A_re;
+           if ~any(isnan(mean_seris))
             
-           A_corrct = reshape(A_corrct,sz); 
+               f = fit(x',mean_series','exp1');
+               trend = f.a.*exp(f.b.*x);
+
+               mean_trend = nanmean(trend);
+               trend = repmat(trend,[sz(1)*sz(2),1]);
+               A_corrct = A_re - trend + mean_trend;
+               %A_re = detrend(A_re', 1);
+               %A_corrct = A_re' + mean_baseline; clear A_re;
+
+               A_corrct = reshape(A_corrct,sz); 
+           else
+               A_corrct = reshape(A, sz);
+           end
             
         end
         
