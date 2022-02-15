@@ -36,7 +36,7 @@ function audPipe(param)
     
     %Process each movie in parallel/sequentially
     try
-        for f = 1:nmov
+        parfor f = 1:nmov
             disp('Load instance.mat file if existed...')
             [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
             if ~isempty(curLoad)
@@ -53,7 +53,7 @@ function audPipe(param)
         end
     catch
         disp('Parallel running failed, try run the data sequentially!')
-        for f = 1:nmov
+        parfor f = 1:nmov
             disp('Load instance.mat file if existed...')
             [curLoad, ~, ~]  = Integration.readInSingleMatrix('instance',f);
             if ~isempty(curLoad)

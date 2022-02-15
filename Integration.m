@@ -223,6 +223,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     obj.smallMask = ds_Mask(:,:,1);              
 
                     %"Raw" data stored (reshape to 2D to save space)
+                    A6 = sinlge(A6);
                     obj.A = reshape(A6, [sz(1)*sz(2), sz(3)]);
 
                     %Save the instance as an object
@@ -309,6 +310,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 %disp('Z-scored reconstructed matrix')
 
                 %Save filtered matrix
+                A_dFoF = single(A_dFoF);
                 checkname = [filename(1:length(filename)-4) '_filtered' movTag '.mat'];
                 save(fullfile(outputFolder,checkname),'A_dFoF','-v7.3');
             end
@@ -609,9 +611,9 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                             case '.m'
                                 fprintf(baphyID,'%s\r\n',curName);
                             case '.tif'
-                                if ~contains(curName,'@00')
+                                %if ~contains(curName,'@00')
                                     fprintf(tifID,'%s\r\n',curName);
-                                end
+                                %end
                         end
                     end
                 end                               
