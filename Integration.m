@@ -223,7 +223,6 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     obj.smallMask = ds_Mask(:,:,1);              
 
                     %"Raw" data stored (reshape to 2D to save space)
-                    A6 = single(A6);
                     obj.A = reshape(A6, [sz(1)*sz(2), sz(3)]);
 
                     %Save the instance as an object
