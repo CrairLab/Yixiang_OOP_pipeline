@@ -912,7 +912,7 @@ classdef movieData
            mean_series = nanmean(A_re,1);
            %mean_baseline = nanmean(mean_series);
            
-           if ~any(isnan(mean_seris))
+           if ~any(isnan(mean_series))
             
                f = fit(x',mean_series','exp1');
                trend = f.a.*exp(f.b.*x);
