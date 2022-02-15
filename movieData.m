@@ -925,7 +925,7 @@ classdef movieData
 
                A_corrct = reshape(A_corrct,sz); 
            else
-               A_corrct = reshape(A, sz);
+               A_corrct = reshape(A_re, sz);
            end
             
         end
