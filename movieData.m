@@ -885,7 +885,7 @@ classdef movieData
             if h_end < sz(2)
                 h_ini = h_end + 1;
                 h_end = sz(2);
-                for i = 1:nw
+                for i = 1:n_w
                     w_ini = (i-1) * window_w + 1;
                     w_end = i * window_w;
                     A_slice = A(w_ini:w_end, h_ini:h_end, :);
