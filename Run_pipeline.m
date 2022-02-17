@@ -54,7 +54,7 @@ function Run_pipeline(txtpath, param)
         
         %end
 
-        %WAIP;
+        WAIP;
 
     end
 

@@ -133,12 +133,12 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                 if ~isempty(obj.smallMask)
                     %If smallMask property existed, instance.mat file must had
                     %already exisited
-                    A6 = obj.A;
+                    A4 = obj.A;
                     sz = size(obj.smallMask);
 
                     %Recover 3D matrix A_DS
-                    if length(size(A6)) == 2
-                        A6 = reshape(A6, [sz(1) sz(2) size(A6,2)]);
+                    if length(size(A4)) == 2
+                        A4 = reshape(A4, [sz(1) sz(2) size(A4,2)]);
                     end                
                 else                    
                     %If instance matrix not detected, create one
@@ -179,29 +179,17 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     %Save movemet assessment results
                     checkname = [filename(1:length(filename)-4) '_moveAssess' movTag '.mat'];
                     save(fullfile(outputFolder,checkname),'tform_all','NormTform_all','movIdx_saved');
-                                                                   
-                    % / Correct photobleaching
-                    A3 = Integration.bleachCorrection(A2);
-                    obj.A = []; clear A2
-                    disp('Photobleaching corrected!');
-                   
-                    % / Gaussian smoothing
-                    A4 = Integration.GauSmoo(A3,1); %set sigma = 1
-                    disp('Gaussian smoothing is done');
-                    clear A3
-                    disp(' ')
 
                     % / Apply ROI mask(s)
-                    A5 = Integration.ApplyMask(A4,obj.ROIData, param.spacialFactor);
+                    A3 = Integration.ApplyMask(A2,obj.ROIData, param.spacialFactor);
                     disp('Successfully apply ROI')
-                    
-                    
+
                     %Get averaged dF/F outside of the ROI
-                    sz = size(A4); 
-                    A4 = reshape(A4, [sz(1)*sz(2),sz(3)]);
-                    A5 = reshape(A5, [sz(1)*sz(2),sz(3)]);
-                    outInd = A5(:,1) == 0;
-                    A_out = A4(outInd, :);
+                    sz = size(A2); 
+                    A2 = reshape(A2, [sz(1)*sz(2),sz(3)]);
+                    A3 = reshape(A3, [sz(1)*sz(2),sz(3)]);
+                    outInd = A3(:,1) == 0;
+                    A_out = A2(outInd, :);
                     A_out(A_out == 0) = nan;
                     Avg_out = nanmean(A_out,1); Avg_out = reshape(Avg_out, [1, 1, sz(3)]);
                     Avg_out_dFoF = Integration.grossDFoverF(Avg_out);
@@ -211,26 +199,41 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     end
                     checkname = [filename(1:length(filename)-4) '_out_dFoF.mat'];
                     save(fullfile(outputFolder,checkname),'Avg_out_dFoF');
-                    clear A4 Avg_out_dFoF
+                    clear A2 Avg_out_dFoF
 
                     % / Focusing on just the ROI part of the movie
-                    A5 = reshape(A5, sz);
-                    A6 = movieData.focusOnroi(A5);
+                    A3 = reshape(A3, sz);
+                    A4 = movieData.focusOnroi(A3);
 
                     %Get the downsampled roi mask
-                    sz = size(A6);
-                    ds_Mask = repmat((A6(:,:,1) ~= 0),[1,1,sz(3)]);
-                    obj.smallMask = ds_Mask(:,:,1);              
-
+                    sz = size(A4);
+                    ds_Mask = repmat((A4(:,:,1) ~= 0),[1,1,sz(3)]);
+                    obj.smallMask = ds_Mask(:,:,1);
+                    
+                    
                     %"Raw" data stored (reshape to 2D to save space)
-                    obj.A = reshape(A6, [sz(1)*sz(2), sz(3)]);
+                    obj.A = A4;  
 
                     %Save the instance as an object
                     checkname = [filename(1:length(filename)-4) '_instance.mat'];
                     save(fullfile(outputFolder,checkname),'obj','-v7.3');
                     %delete(filename);
                     disp('Instance.mat file saved, consider delete raw .tif movies!')
+                    
                 end
+
+                % / Correct photobleaching
+                tic;
+                A5 = Integration.bleachCorrection(A4);
+                toc;
+                obj.A = []; clear A4
+                disp('Photobleaching corrected!');
+
+                % / Gaussian smoothing
+                A6 = Integration.GauSmoo(A5,1); %set sigma = 1
+                disp('Gaussian smoothing is done');
+                clear A5
+                disp(' ')
 
                 %Top-hat filtering
                 if ~obj.flag

@@ -849,10 +849,12 @@ classdef movieData
             
             
             sz = size(A);
-            window_w = 5; %w_rem = rem(sz(1), window_w);
-            window_h = 5; %h_rem = rem(sz(2), window_h);
+            window_w = 2; %w_rem = rem(sz(1), window_w);
+            window_h = 2; %h_rem = rem(sz(2), window_h);
             n_w = floor(sz(1)/ window_w);
             n_h = floor(sz(2)/ window_h);
+            
+            warning('off','all')
             
             for i = 1:n_w % Doing photobleaching by sliding window of size 5
                 for j = 1:n_h
@@ -898,6 +900,7 @@ classdef movieData
                 A(w_ini:w_end, h_ini:h_end, :) = movieData.bleachCorrectionByMean(A_slice);
             end
             
+            warning('on','all')
             %A = movieData.TopHatFiltering(A);
                 
         end
@@ -962,8 +965,8 @@ classdef movieData
             sz = size(A_roi);
             A_roi = reshape(A_roi,[sz(1)*sz(2),sz(3)]);
             A_roi(isnan(A_roi)) = 0;
-            psv_dim = round(size(cur_img,1)*size(cur_img,2)/800); %empirically suffcient to have a good-quality reconstruction
-            psv_dim = max(psv_dim,120); %At least preserve first 120 dimensions
+            psv_dim = round(size(cur_img,1)*size(cur_img,2)/400); %empirically suffcient to have a good-quality reconstruction
+            psv_dim = max(psv_dim, 256); %At least preserve first 256 dimensions
             disp(['Preserved dimensions = ' num2str(psv_dim)]);
             %tic; [U,S,V] = svds(A_roi,psv_dim); toc;
             tic; [U,S,V] = svds(A_roi',psv_dim); toc;
