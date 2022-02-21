@@ -231,6 +231,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
 
                 % / Gaussian smoothing
                 A6 = Integration.GauSmoo(A5,1); %set sigma = 1
+                A6(A5 == 0) = nan; 
                 disp('Gaussian smoothing is done');
                 clear A5
                 disp(' ')

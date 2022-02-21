@@ -5,16 +5,18 @@ function Run_pipeline(txtpath, param)
     DirList = readtext(txtpath);
     DirList = DirList(~cellfun('isempty', DirList));
     nDir = length(DirList);
+    errortxt = fullfile(pwd, 'Error_folders.txt');
+    errorID = fopen(errortxt,'w');
 
     % Go over each folder to do the analysis
-    %parpool(4)
     
     for i = 1:nDir
+        
+        try
 
-        cur_folder = DirList{i};
+            cur_folder = DirList{i};
 
-        %Set the current directory (data to analyze)
-        %spmd 
+            %Set the current directory (data to analyze)
             cd(cur_folder)
 
             %Set parameters
@@ -28,7 +30,7 @@ function Run_pipeline(txtpath, param)
             %Spatial downsampling factor
             param.spacialFactor = 2;
             %Motion correction methods, 0:NoRMCorre, 1: dft
-            param.motionCorrMethod = 1;
+            param.motionCorrMethod = 0;
             %Lower limit for number of seeds
             param.total_seeds = 500;
             %Whether to use GPU, default = 0
@@ -46,17 +48,22 @@ function Run_pipeline(txtpath, param)
             audPipe(param)
 
             %Run the seed-based correlation (regular)
-            byPassPreProcessing(3, param);
+            %byPassPreProcessing(3, param);
 
             %Run the seed-based correlation (partial)
             param.mean_flag = 1;
             byPassPreProcessing(3, param);
-        
-        %end
 
-        WAIP;
-
+            %WAIP;
+        catch
+            warning('Unexpected error occurred, saving the folder path...')
+            cur_folder = DirList{i};
+            fprintf(errorID, [cur_folder, '\n']);
+        end
+            
     end
+    
+    fclose(errorID);
 
 end
 
