@@ -849,8 +849,8 @@ classdef movieData
             
             
             sz = size(A);
-            window_w = 2; %w_rem = rem(sz(1), window_w);
-            window_h = 2; %h_rem = rem(sz(2), window_h);
+            window_w = 4; %w_rem = rem(sz(1), window_w);
+            window_h = 4; %h_rem = rem(sz(2), window_h);
             n_w = floor(sz(1)/ window_w);
             n_h = floor(sz(2)/ window_h);
             
@@ -1029,7 +1029,7 @@ classdef movieData
 
         end
         
-        function makePseudoColorMovie(A,movieName,FrameRate)
+        function makePseudoColorMovie(A,movieName,FrameRate, sparseflag)
             
         % Make pseudo-color (jet 256) movie from zscored matrix A
         % Inputs:
@@ -1044,13 +1044,36 @@ classdef movieData
                 FrameRate = 50;
             end
             
+            if ~exist('sparseflag','var')
+                sparseflag = 0;
+            end
+            
             %Doing zscoring here
-            [X,~] = gray2ind(zscore(A,1,3));
-            sz = size(X);
+            %[X,~] = gray2ind(zscore(A,1,3))
+            sz = size(A); A = reshape(A, [sz(1) * sz(2), sz(3)]);
+            
+            if ~sparseflag
+                amin = 0;
+                amax = 3;
+            else
+                amin = 1;
+                amax = 5;
+            end
+
+            A_flat = A(:);
+            A_mean = nanmean(A_flat);
+            A_flat(isnan(A_flat)) = A_mean;
+            A_z = zscore(A_flat); 
+            X = mat2gray(A_z, [amin amax]);
+            X = reshape(X,sz);
+            [X,~] = gray2ind(X);
+            m = 64;
+                
+            %sz = size(X);
             new_X = zeros(sz(1),sz(2),3,sz(3));
             for i = 1:sz(3)
                 %disp(num2str(i))
-                new_X(:,:,:,i) = ind2rgb(X(:,:,i), jet(256));
+                new_X(:,:,:,i) = ind2rgb(X(:,:,i), parula(m));
             end
             mov = immovie(new_X);
             v = VideoWriter(movieName,'Motion JPEG AVI');
@@ -1683,7 +1706,7 @@ classdef movieData
                 end
                 % first try out rigid motion correction
                     % exclude boundaries due to high pass filtering effects
-                options_r = NoRMCorreSetParms('d1',d1-bound,'d2',d2-bound,'bin_width',200,'max_shift',20,'iter',1,'correct_bidir',false);
+                options_r = NoRMCorreSetParms('d1',d1-bound,'d2',d2-bound,'bin_width',200,'max_shift',20,'iter',1,'correct_bidir',false,'print_msg',false);
 
                 % register using the high pass filtered data and apply shifts to original data
                 tic; [M1,shifts1,template1] = normcorre_batch(Y(bound/2+1:end-bound/2,bound/2+1:end-bound/2,:),options_r); toc % register filtered data
@@ -2202,6 +2225,24 @@ classdef movieData
         end
         
         
+        function A_z = zscore_flat(A)
+        % Z-score input movie by flatenning out it to 1D first
+        % Input:
+        %    A   2D OR 3D dFoF movie
+        % Output:
+        %    A_z z-scored 3D movie
+
+            sz = size(A);
+            A_mean = nanmean(A(:));
+            nan_id = isnan(A);
+            A((nan_id)) = A_mean;
+            A_z = zscore(A(:));
+            A_z = reshape(A_z, sz);
+            A_z(nan_id) = nan;
+        end
+
+        
     end         
 end
+
        

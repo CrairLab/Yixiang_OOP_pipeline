@@ -152,14 +152,14 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                     tic;
                     param.filename = filename;
                     param.outputFolder = outputFolder;
-                    
+        
                     if ~param.motionCorrMethod
                         %Default motion correction method: NoRMCorre
                         disp('Using NoRMCorre algo to register movies!')
                         [A2, movTag, tform_all, NormTform_all, movIdx_saved] = ...
                             movieData.movAssess_NoRMCorre(A1, param);
                                                 
-                        if isempty(A_registered_cropped)
+                        if isempty(A2)
                             %If failed try the dft method
                             disp('The NoRMCorre algo did not work!')
                             disp('Switch to fast discrete fourier transformation!')
@@ -171,7 +171,7 @@ classdef Integration < spike2 & baphy & movieData & Names & ROI & wlSwitching
                         [A2, movTag, tform_all, NormTform_all, movIdx_saved] = ...
                             movieData.movAssess(A1, param, 'forAll');
                     end
-                    
+                                       
                     disp('Movement assessment finished...Time cost = ')
                     toc;                    
                     clear A1
